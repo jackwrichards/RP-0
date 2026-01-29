@@ -65,6 +65,11 @@ namespace RP0
             _shouldResetUISize = true;
         }
 
+        public static void RequestUIReset()
+        {
+            _shouldResetUISize = true;
+        }
+
         private void UpdateSelectedTab()
         {
             GUILayout.BeginHorizontal();
