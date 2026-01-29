@@ -1,257 +1,295 @@
 ﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
+using RP0.UI.Budget;
 
 namespace RP0
 {
+    /// <summary>
+    /// Modern budget and maintenance UI with visual dashboards
+    /// </summary>
     public class MaintenanceGUI : UIBase
     {
+        // Legacy enum for backward compatibility with MaintenanceHandler
         public enum MaintenancePeriod { Day, Month, Year };
 
-        private Vector2 _nautListScroll = new Vector2();
-        private readonly GUIContent _infoBtnContent = new GUIContent("ⓘ", "View details");
+        private BudgetPeriod _selectedPeriod = BudgetPeriod.Month;
+        private BudgetSnapshot _currentSnapshot;
+        private List<BudgetAlert> _alerts;
+        private string _warpToFundsString = string.Empty;
 
-        private System.Collections.Generic.Dictionary<string, string> siteLocalizer = new System.Collections.Generic.Dictionary<string, string>();
+        // Tab-specific state
+        private Vector2 _nautListScroll = Vector2.zero;
+        private Vector2 _alertsScroll = Vector2.zero;
+        private Dictionary<string, string> _siteLocalizer = new Dictionary<string, string>();
+        
+        // Chart time range selection
+        private int _chartMonthsToShow = 120; // Default: 10 years (120 months)
 
-        private string warpToFundsString;
-
-        private string LocalizeSiteName(string siteID)
+        protected override void OnStart()
         {
-            if (siteLocalizer.Count == 0)
-            {
-                foreach (var c in GameDatabase.Instance.GetConfigNodes("KSCSWITCHER"))
-                {
-                    foreach (var l in c.GetNode("LaunchSites").GetNodes("Site"))
-                    {
-                        string dName = l.GetValue("displayName");
-                        if (!string.IsNullOrEmpty(dName))
-                        {
-                            if (dName[0] == '#') // not using GetStringByTag in case a user screws this up. :)
-                                dName = KSP.Localization.Localizer.Format(dName);
-
-                            siteLocalizer[l.GetValue("name")] = dName;
-                        }
-                    }
-                }
-            }
-
-            string val;
-            if (siteLocalizer.TryGetValue(siteID, out val))
-                return val;
-
-            return siteID;
+            base.OnStart();
+            BudgetUIComponents.InitializeStyles();
         }
 
-        private double PeriodFactor
+        /// <summary>
+        /// Refresh all budget calculations - called automatically on every render
+        /// </summary>
+        private void RefreshBudgetData()
         {
-            get
-            {
-                return MaintenanceHandler.Instance.guiSelectedPeriod switch
-                {
-                    MaintenancePeriod.Day => 1,
-                    MaintenancePeriod.Month => 30,
-                    MaintenancePeriod.Year => 365.25,
-                    _ => 0,
-                };
-            }
+            if (HighLogic.CurrentGame?.Mode != Game.Modes.CAREER)
+                return;
+
+            _currentSnapshot = BudgetCalculator.Instance.GenerateSnapshot(_selectedPeriod);
+            _alerts = BudgetCalculator.Instance.GenerateAlerts(_currentSnapshot);
         }
 
-        private string PeriodDispFormat => MaintenanceHandler.Instance.guiSelectedPeriod == MaintenancePeriod.Day ? "N1" : "N0";
-
-        private string FormatCost(double cost)
-        {
-            if (cost < 0)
-                return $"({(-cost).ToString(PeriodDispFormat)})";
-            else if (cost > 0)
-                return $"+{cost.ToString(PeriodDispFormat)}";
-            else
-                return cost.ToString(PeriodDispFormat);
-        }
-
-        private void RenderPeriodSelector()
-        {
-            GUILayout.BeginHorizontal();
-
-            if (RenderToggleButton("Day", MaintenanceHandler.Instance.guiSelectedPeriod == MaintenancePeriod.Day))
-                MaintenanceHandler.Instance.guiSelectedPeriod = MaintenancePeriod.Day;
-            if (RenderToggleButton("Month", MaintenanceHandler.Instance.guiSelectedPeriod == MaintenancePeriod.Month))
-                MaintenanceHandler.Instance.guiSelectedPeriod = MaintenancePeriod.Month;
-            if (RenderToggleButton("Year", MaintenanceHandler.Instance.guiSelectedPeriod == MaintenancePeriod.Year))
-                MaintenanceHandler.Instance.guiSelectedPeriod = MaintenancePeriod.Year;
-
-            GUILayout.EndHorizontal();
-        }
-
+        /// <summary>
+        /// Main budget summary dashboard
+        /// </summary>
         public void RenderSummaryTab()
         {
             if (SpaceCenterManagement.Instance == null)
                 return;
 
-            double totalCost = 0d;
-            double cost;
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Budget (per ", HighLogic.Skin.label);
-            RenderPeriodSelector();
-            GUILayout.Label(")", HighLogic.Skin.label);
-            GUILayout.EndHorizontal();
+            // Always refresh data to keep it live
+            RefreshBudgetData();
 
+            // Period selector and Warp button on same row
             GUILayout.BeginHorizontal();
-            try
+            
+            BudgetPeriod newPeriod = BudgetUIComponents.RenderPeriodSelector(_selectedPeriod);
+            if (newPeriod != _selectedPeriod)
             {
-                GUILayout.Label("Facilities", HighLogic.Skin.label, GUILayout.Width(160));
-                cost = CurrencyUtils.Funds(TransactionReasonsRP0.StructureRepair, -MaintenanceHandler.Instance.FacilityUpkeepPerDay * PeriodFactor);
-                cost += CurrencyUtils.Funds(TransactionReasonsRP0.StructureRepairLC, -MaintenanceHandler.Instance.LCsCostPerDay * PeriodFactor);
-                totalCost += cost;
-                GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-                if (GUILayout.Button(_infoBtnContent, InfoButton))
+                _selectedPeriod = newPeriod;
+            }
+            
+            GUILayout.FlexibleSpace();
+            
+            // Warp to Fund Target button
+            if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
+            {
+                if (GUILayout.Button("Warp to Fund Target", HighLogic.Skin.button, GUILayout.Height(24)))
                 {
-                    TopWindow.SwitchTabTo(UITab.Facilities);
+                    ShowWarpToFundsDlg();
                 }
             }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
+            
             GUILayout.EndHorizontal();
+            GUILayout.Space(4);
 
+            // Top metrics row
+            RenderMetricsRow();
+
+            GUILayout.Space(4);
+
+            // Two-column layout: Budget summary on left, Alerts on right
             GUILayout.BeginHorizontal();
-            try
+            
+            // Left column: Budget summary
+            GUILayout.BeginVertical(GUILayout.Width(300));
+            BudgetUIComponents.RenderBudgetSummary(_currentSnapshot);
+            GUILayout.EndVertical();
+
+            GUILayout.Space(8);
+
+            // Right column: Alerts (including funds runway)
+            GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
+            
+            // Always show alerts section (includes funds runway if negative cash flow)
+            RenderAlertsSection();
+            
+            GUILayout.EndVertical();
+            
+            GUILayout.EndHorizontal();
+            GUILayout.Space(4);
+
+            // Historical charts
+            if (CareerLog.Instance != null && CareerLog.Instance.IsEnabled)
             {
-                GUILayout.Label("Integration Teams", HighLogic.Skin.label, GUILayout.Width(160));
-                cost = CurrencyUtils.Funds(TransactionReasonsRP0.SalaryEngineers, -MaintenanceHandler.Instance.IntegrationSalaryPerDay * PeriodFactor);
-                totalCost += cost;
-                GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-                if (GUILayout.Button(_infoBtnContent, InfoButton))
+                // Funds and Subsidy charts side by side
+                GUILayout.BeginHorizontal();
+                
+                GUILayout.BeginVertical();
+                BudgetUIComponents.BeginCard("Funds & Unlock Credit (Monthly)");
+                BudgetChartRenderer.RenderHistoricalFundsChart(_chartMonthsToShow, 280, 100);
+                BudgetUIComponents.EndCard();
+                GUILayout.EndVertical();
+
+                GUILayout.Space(8);
+
+                GUILayout.BeginVertical();
+                BudgetUIComponents.BeginCard("Historical Subsidy (Monthly)");
+                BudgetChartRenderer.RenderHistoricalSubsidyChart(_chartMonthsToShow, 280, 100);
+                BudgetUIComponents.EndCard();
+                GUILayout.EndVertical();
+
+                GUILayout.EndHorizontal();
+                GUILayout.Space(4);
+
+                // Confidence and Reputation chart
+                BudgetUIComponents.BeginCard("Confidence & Reputation (Monthly)");
+                BudgetChartRenderer.RenderHistoricalConfidenceRepChart(_chartMonthsToShow, 580, 200);
+                BudgetUIComponents.EndCard();
+                
+                // Chart time range selector at bottom - compact and subtle
+                GUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
+                
+                var subtleStyle = new GUIStyle(GUI.skin.label)
                 {
-                    TopWindow.SwitchTabTo(UITab.Integration);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            try
-            {
-                GUILayout.Label("Research Teams", HighLogic.Skin.label, GUILayout.Width(160));
-                cost = CurrencyUtils.Funds(TransactionReasonsRP0.SalaryResearchers, -MaintenanceHandler.Instance.ResearchSalaryPerDay * PeriodFactor);
-                totalCost += cost;
-                GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            try
-            {
-                GUILayout.Label("Astronauts", HighLogic.Skin.label, GUILayout.Width(160));
-                cost = CurrencyUtils.Funds(TransactionReasonsRP0.SalaryCrew, -MaintenanceHandler.Instance.NautBaseUpkeepPerDay * PeriodFactor)
-                    + CurrencyUtils.Funds(TransactionReasonsRP0.SalaryCrew, -MaintenanceHandler.Instance.NautInFlightUpkeepPerDay * PeriodFactor);
-                totalCost += cost;
-                double cost2 = CurrencyUtils.Funds(TransactionReasonsRP0.CrewTraining, -MaintenanceHandler.Instance.TrainingUpkeepPerDay * PeriodFactor);
-                totalCost += cost2;
-                cost += cost2;
-                GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-                if (GUILayout.Button(_infoBtnContent, InfoButton))
+                    fontSize = 9,
+                    normal = { textColor = new Color(0.5f, 0.5f, 0.5f) },
+                    alignment = TextAnchor.MiddleRight
+                };
+                GUILayout.Label("Chart Range:", subtleStyle, GUILayout.Width(65));
+                
+                var buttonStyle = new GUIStyle(GUI.skin.button)
                 {
-                    TopWindow.SwitchTabTo(UITab.AstronautCosts);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Avg. Subsidy", HighLogic.Skin.label, GUILayout.Width(160));
-            // NOT formatcost since it is not, strictly speaking, a fund gain.
-            double subsidy = MaintenanceHandler.GetAverageSubsidyForPeriod(PeriodFactor * 86400d);
-            subsidy = CurrencyUtils.Funds(TransactionReasonsRP0.Subsidy, subsidy) * (PeriodFactor / 365.25d);
-            GUILayout.Label(subsidy.ToString(PeriodDispFormat), RightLabel, GUILayout.Width(160));
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            totalCost = Math.Min(0, totalCost + subsidy);
-            GUILayout.Label("Net (after subsidy)", BoldLabel, GUILayout.Width(160));
-            GUILayout.Label(FormatCost(totalCost), BoldRightLabel, GUILayout.Width(160));
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            double rolloutCost = 0d;
-            try
-            {
-                rolloutCost = SpaceCenterManagement.Instance.GetReconRolloutCostOverTime(PeriodFactor * 86400d);
-                GUILayout.Label("Rollout/Airlaunch Prep", HighLogic.Skin.label, GUILayout.Width(160));
-                GUILayout.Label(FormatCost(rolloutCost), RightLabel, GUILayout.Width(160));
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            double constrMaterials = SpaceCenterManagement.Instance.GetConstructionCostOverTime(PeriodFactor * 86400d);
-            GUILayout.Label("Constructions", HighLogic.Skin.label, GUILayout.Width(160));
-            GUILayout.Label(FormatCost(constrMaterials), RightLabel, GUILayout.Width(160));
-            if (GUILayout.Button(_infoBtnContent, InfoButton))
-            {
-                TopWindow.SwitchTabTo(UITab.Construction);
-            }
-            GUILayout.EndHorizontal();
-
-            double utDelta = PeriodFactor * 86400d;
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Program Budget", HighLogic.Skin.label, GUILayout.Width(160));
-            double programBudget = Programs.ProgramHandler.Instance.GetDisplayProgramFunding(utDelta);
-            GUILayout.Label(FormatCost(programBudget), RightLabel, GUILayout.Width(160));
-            if (GUILayout.Button(_infoBtnContent, InfoButton))
-            {
-                TopWindow.SwitchTabTo(UITab.Programs);
-            }
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Balance", BoldLabel, GUILayout.Width(160));
-            double delta = programBudget + totalCost + constrMaterials + rolloutCost;
-            GUILayout.Label(FormatCost(delta), BoldRightLabel, GUILayout.Width(160));
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Unlock Credit", HighLogic.Skin.label, GUILayout.Width(160));
-            double unlockCredit = 0d;
-            double accumTime = 0d;
-            for (int i = 0; i < SpaceCenterManagement.Instance.TechList.Count && accumTime < utDelta; ++i)
-            {
-                var tech = SpaceCenterManagement.Instance.TechList[i];
-                double buildTime = tech.BuildRate > 0d ? tech.TimeLeft : tech.GetTimeLeftEst(accumTime);
-                double timeLeft = utDelta - accumTime;
-                if (buildTime > timeLeft)
-                    buildTime = timeLeft;
-                if (buildTime <= 0d) // failsafe, but we might somehow have a 0 build time from a completed tech
-                    continue;
-                unlockCredit += UnlockCreditHandler.Instance.CreditForTime(buildTime);
-                accumTime += buildTime;
-            }
-            GUILayout.Label(FormatCost(CurrencyUtils.Rate(TransactionReasonsRP0.RateUnlockCreditIncrease) * unlockCredit), RightLabel, GUILayout.Width(160));
-            GUILayout.EndHorizontal();
-
-            if (HighLogic.LoadedScene == GameScenes.SPACECENTER &&
-                GUILayout.Button(new GUIContent("Warp to Fund Target", "Warps to the fund target you specify in the resulting dialog"), HighLogic.Skin.button))
-            {
-                ShowWarpToFundsDlg();
+                    fontSize = 9,
+                    padding = new RectOffset(6, 6, 2, 2)
+                };
+                
+                if (GUILayout.Button("1y", _chartMonthsToShow == 12 ? HighLogic.Skin.button : buttonStyle, GUILayout.Width(28), GUILayout.Height(18)))
+                    _chartMonthsToShow = 12;
+                if (GUILayout.Button("10y", _chartMonthsToShow == 120 ? HighLogic.Skin.button : buttonStyle, GUILayout.Width(32), GUILayout.Height(18)))
+                    _chartMonthsToShow = 120;
+                
+                GUILayout.EndHorizontal();
+                GUILayout.Space(4);
             }
         }
 
+        /// <summary>
+        /// Render top-level metrics cards
+        /// </summary>
+        private void RenderMetricsRow()
+        {
+            GUILayout.BeginHorizontal();
+
+            // Current Funds
+            BudgetUIComponents.RenderMetricCard(
+                "Current Funds",
+                $"√{_currentSnapshot.CurrentFunds:N0}",
+                BudgetUIComponents.Colors.Accent,
+                KSPUtil.PrintDate(_currentSnapshot.Timestamp, false)
+            );
+
+            GUILayout.Space(4);
+
+            // Unlock Credit - show total accumulated, not projected earnings
+            double unlockCreditValue = UnlockCreditHandler.Instance?.TotalCredit ?? 0d;
+            double unlockCreditRate = CurrencyUtils.Rate(TransactionReasonsRP0.RateUnlockCreditIncrease);
+            string unlockCreditTooltip = "Unlock credit is earned from paying your research teams (35% of their salaries). " +
+                                        "It reduces the cost of unlocking new parts, part upgrades, and tooling, " +
+                                        "simulating that R&D costs are already covered by your research budget.";
+            BudgetUIComponents.RenderMetricCard(
+                "Unlock Credit",
+                $"√{unlockCreditValue:N0}",
+                new Color(1.0f, 0.9f, 0.3f), // Yellow
+                $"Rate: {unlockCreditRate:F2}x",
+                unlockCreditTooltip
+            );
+
+            GUILayout.Space(4);
+
+            // Total Income
+            BudgetUIComponents.RenderMetricCard(
+                "Income",
+                BudgetCalculator.FormatCurrency(_currentSnapshot.TotalIncome, "N0"),
+                BudgetUIComponents.Colors.Income
+            );
+
+            GUILayout.Space(4);
+
+            // Total Expenses
+            BudgetUIComponents.RenderMetricCard(
+                "Expenses",
+                BudgetCalculator.FormatCurrency(_currentSnapshot.TotalExpenses, "N0"),
+                BudgetUIComponents.Colors.Expense
+            );
+
+            GUILayout.Space(4);
+
+            // Net Cash Flow
+            Color netColor = _currentSnapshot.NetCashFlow >= 0 ?
+                BudgetUIComponents.Colors.Positive : BudgetUIComponents.Colors.Negative;
+            BudgetUIComponents.RenderMetricCard(
+                "Net Cash Flow",
+                BudgetCalculator.FormatCurrency(_currentSnapshot.NetCashFlow, "N0"),
+                netColor,
+                _currentSnapshot.NetCashFlow >= 0 ? "Surplus" : "Deficit"
+            );
+
+            GUILayout.EndHorizontal();
+        }
+
+        /// <summary>
+        /// Render alerts and warnings (including funds runway)
+        /// </summary>
+        private void RenderAlertsSection()
+        {
+            BudgetUIComponents.BeginCard("Alerts & Notifications");
+
+            // Scrollable alerts section - height matches budget summary
+            _alertsScroll = GUILayout.BeginScrollView(_alertsScroll, GUILayout.ExpandHeight(true));
+
+            // Always show funds runway alert first if negative cash flow
+            double dailyCashFlow = _currentSnapshot.NetCashFlow / BudgetCalculator.Instance.GetPeriodMultiplier(_selectedPeriod);
+            if (dailyCashFlow < 0)
+            {
+                double daysRemaining = _currentSnapshot.CurrentFunds / Math.Abs(dailyCashFlow);
+                
+                BudgetAlert.AlertLevel runwayLevel;
+                if (daysRemaining < 30)
+                    runwayLevel = BudgetAlert.AlertLevel.Critical;
+                else if (daysRemaining < 90)
+                    runwayLevel = BudgetAlert.AlertLevel.Warning;
+                else
+                    runwayLevel = BudgetAlert.AlertLevel.Info;
+
+                var runwayAlert = new BudgetAlert(
+                    $"Funds runway: {KSPUtil.PrintDateDeltaCompact(daysRemaining * 86400, false, false)}",
+                    runwayLevel,
+                    "Funds Runway"
+                );
+                BudgetUIComponents.RenderAlert(runwayAlert);
+            }
+
+            // Show other alerts
+            if (_alerts != null && _alerts.Count > 0)
+            {
+                foreach (var alert in _alerts)
+                {
+                    BudgetUIComponents.RenderAlert(alert);
+                }
+            }
+
+            // Show message if no alerts
+            if (dailyCashFlow >= 0 && (_alerts == null || _alerts.Count == 0))
+            {
+                var noAlertsStyle = new GUIStyle(GUI.skin.label)
+                {
+                    normal = { textColor = BudgetUIComponents.Colors.TextSecondary },
+                    alignment = TextAnchor.MiddleCenter
+                };
+                GUILayout.Label("No alerts - all systems nominal", noAlertsStyle);
+            }
+
+            GUILayout.EndScrollView();
+
+            BudgetUIComponents.EndCard();
+        }
+
+
+        /// <summary>
+        /// Show warp to funds dialog
+        /// </summary>
         private void ShowWarpToFundsDlg()
         {
             InputLockManager.SetControlLock(ControlTypes.KSC_ALL, "warptofunds");
             UIHolder.Instance.HideWindow();
+
             if (SpaceCenterManagement.Instance.staffTarget.IsValid)
             {
                 string msg = "This functionality cannot be used while there's automatic staff hiring in progress.";
@@ -268,10 +306,10 @@ namespace RP0
             {
                 PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                     new MultiOptionDialog("warpToFunds", "Fund Target", "Warp To Funds", HighLogic.UISkin,
-                        new DialogGUITextInput(warpToFundsString, false, 64, (string n) =>
+                        new DialogGUITextInput(_warpToFundsString, false, 64, (string n) =>
                         {
-                            warpToFundsString = n;
-                            return warpToFundsString;
+                            _warpToFundsString = n;
+                            return _warpToFundsString;
                         }, 24f),
                         new DialogGUIButton("Estimate Time", () => { ShowConfirmWarpDialog(); }),
                         new DialogGUIButton("Cancel", () =>
@@ -283,9 +321,12 @@ namespace RP0
             }
         }
 
+        /// <summary>
+        /// Show warp confirmation dialog
+        /// </summary>
         private void ShowConfirmWarpDialog()
         {
-            if (!double.TryParse(warpToFundsString, out double fundTarget))
+            if (!double.TryParse(_warpToFundsString, out double fundTarget))
             {
                 PopupDialog.SpawnPopupDialog(new MultiOptionDialog("warpToFundsConfirmFail",
                     "Failed to parse funds!",
@@ -296,12 +337,28 @@ namespace RP0
                         UIHolder.Instance.ShowWindow();
                         InputLockManager.RemoveControlLock("warptofunds");
                     })), false, HighLogic.UISkin);
+                return;
             }
-            else
+
+            var forecast = BudgetCalculator.Instance.CalculateForecast(fundTarget, _currentSnapshot);
+
+            if (!forecast.IsAchievable)
             {
-                if (fundTarget <= Funding.Instance.Funds)
-                {
-                    PopupDialog.SpawnPopupDialog(new MultiOptionDialog("warpToFundsConfirmAtFunds",
+                PopupDialog.SpawnPopupDialog(new MultiOptionDialog("warpToFundsConfirmFail",
+                    $"Cannot reach target funds. {forecast.Reason}",
+                    "Error",
+                    HighLogic.UISkin,
+                    300,
+                    new DialogGUIButton("Understood", () => {
+                        UIHolder.Instance.ShowWindow();
+                        InputLockManager.RemoveControlLock("warptofunds");
+                    })), false, HighLogic.UISkin);
+                return;
+            }
+
+            if (forecast.TimeToTarget == 0)
+            {
+                PopupDialog.SpawnPopupDialog(new MultiOptionDialog("warpToFundsConfirmAtFunds",
                     "Already at this funding!",
                     "No Warp Needed",
                     HighLogic.UISkin,
@@ -312,126 +369,66 @@ namespace RP0
                         InputLockManager.RemoveControlLock("warptofunds");
                         SpaceCenterManagement.Instance.fundTarget.Clear();
                     })), false, HighLogic.UISkin);
-                    return;
-                }
-
-                FundTargetProject target = new FundTargetProject(fundTarget);
-                double time = target.GetTimeLeft();
-                if (time < 0d)
-                {
-                    PopupDialog.SpawnPopupDialog(new MultiOptionDialog("warpToFundsConfirmFail",
-                        $"Failed to find a time to warp to, with a limit of {KSPUtil.PrintDateDeltaCompact(FundTargetProject.MaxTime, false, false)}",
-                        "Error",
-                        HighLogic.UISkin,
-                        300,
-                        new DialogGUIButton("Understood", () => {
-                            UIHolder.Instance.ShowWindow();
-                            InputLockManager.RemoveControlLock("warptofunds");
-                            SpaceCenterManagement.Instance.fundTarget.Clear();
-                        })), false, HighLogic.UISkin);
-                }
-                else
-                {
-                    var options = new DialogGUIBase[] {
-                        new DialogGUIButton("Yes, Warp", () => 
-                        {
-                            SpaceCenterManagement.Instance.fundTarget.Clear();
-                            KCTWarpController.Create(target);
-                            UIHolder.Instance.ShowWindow();
-                            InputLockManager.RemoveControlLock("warptofunds");
-                        }),
-                        new DialogGUIButton("Add Warp Target", () =>
-                        {
-                            SpaceCenterManagement.Instance.fundTarget = target;
-                            target.SetAutoWarp(false);
-                            UIHolder.Instance.ShowWindow();
-                            InputLockManager.RemoveControlLock("warptofunds");
-                        }),
-                        new DialogGUIButton("Cancel", () => 
-                        {
-                            SpaceCenterManagement.Instance.fundTarget.Clear();
-                            UIHolder.Instance.ShowWindow();
-                            InputLockManager.RemoveControlLock("warptofunds");
-                        })
-                    };
-                    var dialog = new MultiOptionDialog("warpToFundsConfirm", $"Warp? Estimated to take {KSPUtil.PrintDateDelta(time, false, false)} and finish on {KSPUtil.PrintDate(Planetarium.GetUniversalTime() + time, false)}", "Confirm Warp", HighLogic.UISkin, 300, options);
-                    PopupDialog.SpawnPopupDialog(dialog, false, HighLogic.UISkin);
-                }
+                return;
             }
+
+            FundTargetProject target = new FundTargetProject(fundTarget);
+            var options = new DialogGUIBase[] {
+                new DialogGUIButton("Yes, Warp", () =>
+                {
+                    SpaceCenterManagement.Instance.fundTarget.Clear();
+                    KCTWarpController.Create(target);
+                    UIHolder.Instance.ShowWindow();
+                    InputLockManager.RemoveControlLock("warptofunds");
+                }),
+                new DialogGUIButton("Add Warp Target", () =>
+                {
+                    SpaceCenterManagement.Instance.fundTarget = target;
+                    target.SetAutoWarp(false);
+                    UIHolder.Instance.ShowWindow();
+                    InputLockManager.RemoveControlLock("warptofunds");
+                }),
+                new DialogGUIButton("Cancel", () =>
+                {
+                    SpaceCenterManagement.Instance.fundTarget.Clear();
+                    UIHolder.Instance.ShowWindow();
+                    InputLockManager.RemoveControlLock("warptofunds");
+                })
+            };
+
+            var dialog = new MultiOptionDialog("warpToFundsConfirm", 
+                $"Warp? Estimated to take {KSPUtil.PrintDateDelta(forecast.TimeToTarget, false, false)} and finish on {KSPUtil.PrintDate(forecast.DateAtTarget, false)}", 
+                "Confirm Warp", HighLogic.UISkin, 300, options);
+            PopupDialog.SpawnPopupDialog(dialog, false, HighLogic.UISkin);
         }
+
+        #region Legacy Tab Methods (Simplified with new system)
 
         public void RenderFacilitiesTab()
         {
             if (SpaceCenterManagement.Instance == null)
                 return;
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Facilities costs (per ", HighLogic.Skin.label);
-            RenderPeriodSelector();
-            GUILayout.Label(")", HighLogic.Skin.label);
-            GUILayout.EndHorizontal();
+            // Always refresh data to keep it live
+            RefreshBudgetData();
 
-            double grandTotal = 0d;
-            foreach (var ksc in SpaceCenterManagement.Instance.KSCs)
+            BudgetUIComponents.RenderSectionHeader($"Facilities Costs (per {_selectedPeriod})");
+            BudgetPeriod newPeriod = BudgetUIComponents.RenderPeriodSelector(_selectedPeriod);
+            if (newPeriod != _selectedPeriod)
             {
-                string site = LocalizeSiteName(ksc.KSCName);
-                GUILayout.BeginHorizontal();
-                GUILayout.Label(site, BoldLabel, GUILayout.Width(160));
-                GUILayout.EndHorizontal();
-
-                double siteTotal = 0d;
-                foreach (var lc in ksc.LaunchComplexes)
-                {
-                    if (!lc.IsOperational)
-                        continue;
-
-                    double cost = MaintenanceHandler.Instance.LCUpkeep(lc) * PeriodFactor;
-                    cost = CurrencyUtils.Funds(TransactionReasonsRP0.StructureRepairLC, -cost);
-                    siteTotal += cost;
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label($"   {lc.Name}", HighLogic.Skin.label, GUILayout.Width(160));
-                    GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-                    GUILayout.EndHorizontal();
-                }
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label(" Total", BoldLabel, GUILayout.Width(160));
-                GUILayout.Label(FormatCost(siteTotal), BoldRightLabel, GUILayout.Width(160));
-                GUILayout.EndHorizontal();
-                grandTotal += siteTotal;
+                _selectedPeriod = newPeriod;
             }
 
-            foreach (var facility in MaintenanceHandler.Instance.FacilitiesForMaintenance)
-            {
-                if (!MaintenanceHandler.Instance.FacilityMaintenanceCosts.TryGetValue(facility, out double cost))
-                    continue;
+            GUILayout.Space(4);
 
-                GUILayout.BeginHorizontal();
-                try
-                {
-                    GUILayout.Label(ScenarioUpgradeableFacilities.GetFacilityName(facility), HighLogic.Skin.label, GUILayout.Width(200));
-                    cost = CurrencyUtils.Funds(TransactionReasonsRP0.StructureRepair, -cost * PeriodFactor);
-                    GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(120));
-                    grandTotal += cost;
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-                GUILayout.EndHorizontal();
-            }
-
-            GUILayout.BeginHorizontal();
-            try
+            var facilityExpenses = _currentSnapshot.Expenses.Find(e => e.Category == BudgetCategory.Facilities);
+            if (facilityExpenses != null)
             {
-                GUILayout.Label("Grand Total", BoldLabel, GUILayout.Width(160));
-                GUILayout.Label(FormatCost(grandTotal), BoldRightLabel, GUILayout.Width(160));
+                BudgetUIComponents.BeginCard();
+                facilityExpenses.IsExpanded = true;
+                BudgetUIComponents.RenderLineItem(facilityExpenses, 0, true);
+                BudgetUIComponents.EndCard();
             }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
-            GUILayout.EndHorizontal();
         }
 
         public void RenderIntegrationTab()
@@ -439,47 +436,26 @@ namespace RP0
             if (SpaceCenterManagement.Instance == null)
                 return;
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Integration Teams Cost (per ", HighLogic.Skin.label);
-            RenderPeriodSelector();
-            GUILayout.Label(")", HighLogic.Skin.label);
-            GUILayout.EndHorizontal();
+            // Always refresh data to keep it live
+            RefreshBudgetData();
 
-            double grandTotal = 0d;
-            foreach (var kvp in MaintenanceHandler.Instance.IntegrationSalaries)
+            BudgetUIComponents.RenderSectionHeader($"Integration Teams Cost (per {_selectedPeriod})");
+            BudgetPeriod newPeriod = BudgetUIComponents.RenderPeriodSelector(_selectedPeriod);
+            if (newPeriod != _selectedPeriod)
             {
-                string site = LocalizeSiteName(kvp.Key);
-                double engineers = kvp.Value;
-                if (engineers == 0)
-                    continue;
-
-                GUILayout.BeginHorizontal();
-                try
-                {
-                    GUILayout.Label(site, HighLogic.Skin.label, GUILayout.Width(160));
-                    double cost = -engineers * Database.SettingsSC.salaryEngineers * PeriodFactor / 365.25d;
-                    cost = CurrencyUtils.Funds(TransactionReasonsRP0.SalaryEngineers, cost);
-                    grandTotal += cost;
-                    GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-                GUILayout.EndHorizontal();
+                _selectedPeriod = newPeriod;
             }
 
-            GUILayout.BeginHorizontal();
-            try
+            GUILayout.Space(4);
+
+            var personnelExpenses = _currentSnapshot.Expenses.Find(e => e.Name == "Integration Teams");
+            if (personnelExpenses != null)
             {
-                GUILayout.Label("Total", BoldLabel, GUILayout.Width(160));
-                GUILayout.Label(FormatCost(grandTotal), BoldRightLabel, GUILayout.Width(160));
+                BudgetUIComponents.BeginCard();
+                personnelExpenses.IsExpanded = true;
+                BudgetUIComponents.RenderLineItem(personnelExpenses, 0, true);
+                BudgetUIComponents.EndCard();
             }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
-            GUILayout.EndHorizontal();
         }
 
         public void RenderConstructionTab()
@@ -487,62 +463,26 @@ namespace RP0
             if (SpaceCenterManagement.Instance == null)
                 return;
 
-            double totalCost = 0d;
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Construction Cost (per ", HighLogic.Skin.label);
-            RenderPeriodSelector();
-            GUILayout.Label(")", HighLogic.Skin.label);
-            GUILayout.EndHorizontal();
+            // Always refresh data to keep it live
+            RefreshBudgetData();
 
-            foreach (var ksc in SpaceCenterManagement.Instance.KSCs)
+            BudgetUIComponents.RenderSectionHeader($"Construction Cost (per {_selectedPeriod})");
+            BudgetPeriod newPeriod = BudgetUIComponents.RenderPeriodSelector(_selectedPeriod);
+            if (newPeriod != _selectedPeriod)
             {
-                string site = LocalizeSiteName(ksc.KSCName);
-                if (ksc.Constructions.Count == 0)
-                    continue;
-
-                GUILayout.BeginHorizontal();
-                try
-                {
-                    double cost = SpaceCenterManagement.Instance.GetConstructionCostOverTime(PeriodFactor * 86400d, ksc);
-                    totalCost += cost;
-                    GUILayout.Label(site, HighLogic.Skin.label, GUILayout.Width(160));
-                    GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-                GUILayout.EndHorizontal();
-
-                for (int i = 0; i < ksc.Constructions.Count; ++i)
-                {
-                    var c = ksc.Constructions[i];
-                    GUILayout.BeginHorizontal();
-                    try
-                    {
-                        KCTUtilities.GetConstructionTooltip(c, i, out string tooltip, out _);
-                        GUILayout.Label(new GUIContent($"  {c.GetItemName()}", tooltip), HighLogic.Skin.label, GUILayout.Width(200));
-                        GUILayout.Label(FormatCost(c.GetConstructionCostOverTime(PeriodFactor * 86400d)), RightLabel, GUILayout.Width(120));
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogException(ex);
-                    }
-                    GUILayout.EndHorizontal();
-                }
+                _selectedPeriod = newPeriod;
             }
 
-            GUILayout.BeginHorizontal();
-            try
+            GUILayout.Space(4);
+
+            var constructionExpenses = _currentSnapshot.Expenses.Find(e => e.Name == "Construction Projects");
+            if (constructionExpenses != null)
             {
-                GUILayout.Label("Total", BoldLabel, GUILayout.Width(160));
-                GUILayout.Label(FormatCost(totalCost), BoldRightLabel, GUILayout.Width(160));
+                BudgetUIComponents.BeginCard();
+                constructionExpenses.IsExpanded = true;
+                BudgetUIComponents.RenderLineItem(constructionExpenses, 0, true);
+                BudgetUIComponents.EndCard();
             }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
-            GUILayout.EndHorizontal();
         }
 
         public void RenderProgramTab()
@@ -550,51 +490,93 @@ namespace RP0
             if (Programs.ProgramHandler.Instance == null)
                 return;
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Active Programs (per ", HighLogic.Skin.label);
-            RenderPeriodSelector();
-            GUILayout.Label(")", HighLogic.Skin.label);
-            GUILayout.EndHorizontal();
+            // Always refresh data to keep it live
+            RefreshBudgetData();
 
-            double total = 0d;
-            foreach (Programs.Program p in Programs.ProgramHandler.Instance.ActivePrograms)
+            BudgetUIComponents.RenderSectionHeader($"Active Programs (per {_selectedPeriod})");
+            BudgetPeriod newPeriod = BudgetUIComponents.RenderPeriodSelector(_selectedPeriod);
+            if (newPeriod != _selectedPeriod)
             {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label(p.title, BoldLabel);
-                GUILayout.EndHorizontal();
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label(" Nominal Deadline:", HighLogic.Skin.label, GUILayout.Width(160));
-                GUILayout.Label(KSPUtil.PrintDate(p.deadlineUT, false), RightLabel, GUILayout.Width(160));
-                GUILayout.EndHorizontal();
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label(" Funding:", HighLogic.Skin.label, GUILayout.Width(160));
-                double amt = p.GetFundsForFutureTimestamp(Planetarium.GetUniversalTime() + PeriodFactor * 86400d) - p.GetFundsForFutureTimestamp(Planetarium.GetUniversalTime());
-                amt = CurrencyUtils.Funds(TransactionReasonsRP0.ProgramFunding, amt);
-                total += amt;
-                GUILayout.Label(FormatCost(amt), RightLabel, GUILayout.Width(160));
-                GUILayout.EndHorizontal();
+                _selectedPeriod = newPeriod;
             }
 
+            GUILayout.Space(4);
+
+            BudgetUIComponents.BeginCard();
+            
+            foreach (var item in _currentSnapshot.Income)
+            {
+                if (item.Category == BudgetCategory.Programs)
+                {
+                    BudgetUIComponents.RenderLineItem(item, 0, true);
+                }
+            }
+
+            BudgetUIComponents.EndCard();
+        }
+
+        public void RenderAstronautsTab()
+        {
+            if (HighLogic.CurrentGame.Mode == Game.Modes.CAREER)
+            {
+                // Always refresh data to keep it live
+                RefreshBudgetData();
+                
+                BudgetUIComponents.RenderSectionHeader($"Astronaut Costs (per {_selectedPeriod})");
+                BudgetPeriod newPeriod = BudgetUIComponents.RenderPeriodSelector(_selectedPeriod);
+                if (newPeriod != _selectedPeriod)
+                {
+                    _selectedPeriod = newPeriod;
+                }
+
+                GUILayout.Space(4);
+            }
+
+            // Astronaut list
+            BudgetUIComponents.BeginCard("Astronaut Corps");
+            
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Total", BoldLabel, GUILayout.Width(160));
-            GUILayout.Label(FormatCost(total), BoldRightLabel, GUILayout.Width(160));
+            int nautCount = HighLogic.CurrentGame.CrewRoster.GetActiveCrewCount();
+            GUILayout.Label($"{nautCount:N0} astronauts", BoldLabel);
             GUILayout.EndHorizontal();
+
+            _nautListScroll = GUILayout.BeginScrollView(_nautListScroll, GUILayout.Width(320), GUILayout.Height(280));
+            RenderNautList();
+            GUILayout.EndScrollView();
+
+            BudgetUIComponents.EndCard();
+
+            if (HighLogic.CurrentGame.Mode == Game.Modes.CAREER)
+            {
+                GUILayout.Space(4);
+                
+                var astronautExpenses = _currentSnapshot.Expenses.Find(e => e.Name == "Astronaut Corps");
+                if (astronautExpenses != null)
+                {
+                    BudgetUIComponents.BeginCard("Cost Breakdown");
+                    astronautExpenses.IsExpanded = true;
+                    BudgetUIComponents.RenderLineItem(astronautExpenses, 0, true);
+                    BudgetUIComponents.EndCard();
+                }
+            }
         }
 
         private void RenderNautList()
         {
+            double periodMultiplier = BudgetCalculator.Instance.GetPeriodMultiplier(_selectedPeriod);
+
             GUILayout.BeginHorizontal();
             GUILayout.Space(20);
-            GUILayout.Label("Name", HighLogic.Skin.label, GUILayout.Width(144));
-            GUILayout.Label("Retires NET", HighLogic.Skin.label, GUILayout.Width(120));
-            GUILayout.Label("Upkeep", HighLogic.Skin.label, GUILayout.Width(50));
+            GUILayout.Label("Name", BoldLabel, GUILayout.Width(144));
+            GUILayout.Label("Retires NET", BoldLabel, GUILayout.Width(120));
+            GUILayout.Label("Upkeep", BoldLabel, GUILayout.Width(50));
             GUILayout.EndHorizontal();
+
             for (int i = 0; i < HighLogic.CurrentGame.CrewRoster.Count; ++i)
             {
                 var k = HighLogic.CurrentGame.CrewRoster[i];
-                if (k.rosterStatus == ProtoCrewMember.RosterStatus.Dead || k.rosterStatus == ProtoCrewMember.RosterStatus.Missing ||
+                if (k.rosterStatus == ProtoCrewMember.RosterStatus.Dead || 
+                    k.rosterStatus == ProtoCrewMember.RosterStatus.Missing ||
                     k.type != ProtoCrewMember.KerbalType.Crew)
                     continue;
 
@@ -603,110 +585,20 @@ namespace RP0
                     continue;
 
                 GUILayout.BeginHorizontal();
-                try
-                {
-                    GUILayout.Space(20);
-                    GUILayout.Label(k.displayName, HighLogic.Skin.label, GUILayout.Width(144));
-                    GUILayout.Label(Crew.CrewHandler.Instance.RetirementEnabled ? KSPUtil.PrintDate(rt, false) : "(n/a)", HighLogic.Skin.label, GUILayout.Width(120));
-                    double cost, flightCost;
-                    MaintenanceHandler.Instance.GetNautCost(k, out cost, out flightCost);
-                    cost += flightCost;
-                    cost = CurrencyUtils.Funds(TransactionReasonsRP0.SalaryCrew, -cost * PeriodFactor);
-                    GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(50));
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
+                GUILayout.Space(20);
+                GUILayout.Label(k.displayName, HighLogic.Skin.label, GUILayout.Width(144));
+                GUILayout.Label(Crew.CrewHandler.Instance.RetirementEnabled ? KSPUtil.PrintDate(rt, false) : "(n/a)", 
+                    HighLogic.Skin.label, GUILayout.Width(120));
+                
+                MaintenanceHandler.Instance.GetNautCost(k, out double cost, out double flightCost);
+                cost += flightCost;
+                cost = CurrencyUtils.Funds(TransactionReasonsRP0.SalaryCrew, -cost * periodMultiplier);
+                GUILayout.Label(BudgetCalculator.FormatCurrency(cost), RightLabel, GUILayout.Width(50));
+                
                 GUILayout.EndHorizontal();
             }
         }
 
-        public void RenderAstronautsTab()
-        {
-            if (HighLogic.CurrentGame.Mode == Game.Modes.CAREER)
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Astronaut costs (per ", HighLogic.Skin.label);
-                RenderPeriodSelector();
-                GUILayout.Label(")", HighLogic.Skin.label);
-                GUILayout.EndHorizontal();
-            }
-
-            GUILayout.BeginHorizontal();
-            try
-            {
-                int nautCount = HighLogic.CurrentGame.CrewRoster.GetActiveCrewCount();
-                GUILayout.Label($"Corps: {nautCount:N0} astronauts", HighLogic.Skin.label, GUILayout.Width(160));
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
-            GUILayout.EndHorizontal();
-
-            _nautListScroll = GUILayout.BeginScrollView(_nautListScroll, GUILayout.Width(360), GUILayout.Height(280));
-            RenderNautList();
-            GUILayout.EndScrollView();
-
-            double total = 0d;
-            double cost;
-            if (HighLogic.CurrentGame.Mode == Game.Modes.CAREER)
-            {
-                GUILayout.BeginHorizontal();
-                try
-                {
-                    GUILayout.Label("Astronaut base cost", HighLogic.Skin.label, GUILayout.Width(160));
-                    cost = CurrencyUtils.Funds(TransactionReasonsRP0.SalaryCrew, -MaintenanceHandler.Instance.NautBaseUpkeepPerDay * PeriodFactor);
-                    total += cost;
-                    GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-                GUILayout.EndHorizontal();
-
-                GUILayout.BeginHorizontal();
-                try
-                {
-                    GUILayout.Label("Astronaut operational cost", HighLogic.Skin.label, GUILayout.Width(160));
-                    cost = CurrencyUtils.Funds(TransactionReasonsRP0.SalaryCrew, -MaintenanceHandler.Instance.NautInFlightUpkeepPerDay * PeriodFactor);
-                    total += cost;
-                    GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-                GUILayout.EndHorizontal();
-
-                GUILayout.BeginHorizontal();
-                try
-                {
-                    GUILayout.Label("Astronaut training cost", HighLogic.Skin.label, GUILayout.Width(160));
-                    cost = CurrencyUtils.Funds(TransactionReasonsRP0.CrewTraining, -MaintenanceHandler.Instance.TrainingUpkeepPerDay * PeriodFactor);
-                    total += cost;
-                    GUILayout.Label(FormatCost(cost), RightLabel, GUILayout.Width(160));
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-                GUILayout.EndHorizontal();
-
-                GUILayout.BeginHorizontal();
-                try
-                {
-                    GUILayout.Label("Total", BoldLabel, GUILayout.Width(160));
-                    GUILayout.Label(FormatCost(total), BoldRightLabel, GUILayout.Width(160));
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-                GUILayout.EndHorizontal();
-            }
-        }
+        #endregion
     }
 }
