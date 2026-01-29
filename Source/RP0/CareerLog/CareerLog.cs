@@ -4,6 +4,7 @@ using ROUtils.DataTypes;
 using RP0.Programs;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using UniLinq;
@@ -95,6 +96,31 @@ namespace RP0
 
                 return _currentPeriod;
             }
+        }
+
+        /// <summary>
+        /// Get all historical log periods, ordered by start time
+        /// </summary>
+        public List<LogPeriod> GetHistoricalPeriods()
+        {
+            if (!IsEnabled) return new List<LogPeriod>();
+            return _periodDict.OrderBy(kvp => kvp.Key).Select(kvp => kvp.Value).ToList();
+        }
+
+        /// <summary>
+        /// Get the most recent N periods (excluding current period)
+        /// </summary>
+        public List<LogPeriod> GetRecentPeriods(int count)
+        {
+            if (!IsEnabled) return new List<LogPeriod>();
+            
+            double currentTime = Planetarium.GetUniversalTime();
+            return _periodDict.Where(kvp => kvp.Value.EndUT <= currentTime)
+                              .OrderByDescending(kvp => kvp.Key)
+                              .Take(count)
+                              .OrderBy(kvp => kvp.Key)
+                              .Select(kvp => kvp.Value)
+                              .ToList();
         }
 
         public override void OnAwake()
