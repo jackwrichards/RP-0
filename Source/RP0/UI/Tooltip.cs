@@ -6,8 +6,8 @@ namespace RP0
 {
     public class Tooltip
     {
-        private const float TooltipMaxWidth = 200f;
-        private const double TooltipShowDelay = 500;
+        private const float TooltipMaxWidth = 400f;
+        private const double TooltipShowDelay = 0;
 
         private static readonly int _tooltipWindowId = "RP0Tooltip".GetHashCode();
         private static GUIStyle _tooltipStyle;
@@ -36,8 +36,9 @@ namespace RP0
             {
                 _tooltipStyle = new GUIStyle(HighLogic.Skin.label);
                 _tooltipStyle.normal.textColor = new Color32(224, 224, 224, 255);
-                _tooltipStyle.padding = new RectOffset(3, 3, 3, 3);
-                _tooltipStyle.alignment = TextAnchor.MiddleCenter;
+                _tooltipStyle.padding = new RectOffset(8, 8, 6, 6);
+                _tooltipStyle.alignment = TextAnchor.UpperLeft;
+                _tooltipStyle.wordWrap = true;
             }
 
             // The texture needs to be re-applied after every scene change
@@ -70,7 +71,7 @@ namespace RP0
             }
         }
 
-        public void ShowTooltip(int windowId, TextAnchor contentAlignment = TextAnchor.MiddleCenter)
+        public void ShowTooltip(int windowId, TextAnchor contentAlignment = TextAnchor.UpperLeft)
         {
             if (_windowTooltipTexts.TryGetValue(windowId, out string tooltipText) && !string.IsNullOrEmpty(tooltipText) &&
                 (DateTime.UtcNow - _tooltipBeginDt).TotalMilliseconds > TooltipShowDelay)
