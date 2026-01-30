@@ -506,18 +506,21 @@ namespace RP0.UI.Budget
         /// </summary>
         public static BudgetPeriod RenderPeriodSelector(BudgetPeriod currentPeriod)
         {
-            if (_toggleButtonStyle == null) InitializeStyles();
+            if (_buttonStyle == null) InitializeStyles();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Period:", _labelStyle, GUILayout.Width(50));
 
             BudgetPeriod newPeriod = currentPeriod;
 
-            if (GUILayout.Button("Day", currentPeriod == BudgetPeriod.Day ? HighLogic.Skin.button : _toggleButtonStyle))
+            // Create pressed button style that matches the top bar
+            var pressedStyle = new GUIStyle(HighLogic.Skin.button);
+            pressedStyle.normal = pressedStyle.active;
+
+            if (GUILayout.Button("Day", currentPeriod == BudgetPeriod.Day ? pressedStyle : HighLogic.Skin.button))
                 newPeriod = BudgetPeriod.Day;
-            if (GUILayout.Button("Month", currentPeriod == BudgetPeriod.Month ? HighLogic.Skin.button : _toggleButtonStyle))
+            if (GUILayout.Button("Month", currentPeriod == BudgetPeriod.Month ? pressedStyle : HighLogic.Skin.button))
                 newPeriod = BudgetPeriod.Month;
-            if (GUILayout.Button("Year", currentPeriod == BudgetPeriod.Year ? HighLogic.Skin.button : _toggleButtonStyle))
+            if (GUILayout.Button("Year", currentPeriod == BudgetPeriod.Year ? pressedStyle : HighLogic.Skin.button))
                 newPeriod = BudgetPeriod.Year;
 
             GUILayout.EndHorizontal();
