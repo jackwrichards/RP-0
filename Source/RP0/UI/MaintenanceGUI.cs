@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using RP0.UI.Budget;
+using RP0.UI;
 
 namespace RP0
 {
@@ -95,28 +96,7 @@ namespace RP0
             // Chart range selector on the right with subtle label (only in full view)
             if (!_compactView && CareerLog.Instance != null && CareerLog.Instance.IsEnabled)
             {
-                var subtleStyle = new GUIStyle(GUI.skin.label)
-                {
-                    fontSize = 10,
-                    normal = { textColor = new Color(0.6f, 0.6f, 0.6f) },
-                    alignment = TextAnchor.MiddleRight
-                };
-                GUILayout.Label("Charts:", subtleStyle, GUILayout.Width(45));
-                
-                // Create pressed button style that matches the top bar
-                var chartPressedStyle = new GUIStyle(HighLogic.Skin.button);
-                chartPressedStyle.normal = chartPressedStyle.active;
-                
-                if (GUILayout.Button("1y", _chartMonthsToShow == 12 ? chartPressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 12;
-                if (GUILayout.Button("5y", _chartMonthsToShow == 60 ? chartPressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 60;
-                if (GUILayout.Button("10y", _chartMonthsToShow == 120 ? chartPressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 120;
-                if (GUILayout.Button("20y", _chartMonthsToShow == 240 ? chartPressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 240;
-                if (GUILayout.Button("30y", _chartMonthsToShow == 360 ? chartPressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 360;
+                _chartMonthsToShow = SharedUIComponents.RenderChartRangeSelector(_chartMonthsToShow);
             }
             
             GUILayout.EndHorizontal();

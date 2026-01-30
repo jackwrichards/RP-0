@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using RP0.UI.Budget;
 using KERBALISM;
 
 namespace RP0.UI.Science
@@ -19,7 +18,7 @@ namespace RP0.UI.Science
         protected override void OnStart()
         {
             base.OnStart();
-            BudgetUIComponents.InitializeStyles();
+            SharedUIComponents.InitializeStyles();
         }
 
         /// <summary>
@@ -64,18 +63,18 @@ namespace RP0.UI.Science
                 
                 // Science chart
                 GUILayout.BeginVertical();
-                BudgetUIComponents.BeginCard("Total Science Earned (Monthly)");
-                Budget.BudgetChartRenderer.RenderHistoricalScienceChart(_chartMonthsToShow, 280, 100);
-                BudgetUIComponents.EndCard();
+                SharedUIComponents.BeginCard("Total Science Earned (Monthly)");
+                RP0.UI.Budget.BudgetChartRenderer.RenderHistoricalScienceChart(_chartMonthsToShow, 280, 100);
+                SharedUIComponents.EndCard();
                 GUILayout.EndVertical();
 
                 GUILayout.Space(8);
 
                 // Researchers chart
                 GUILayout.BeginVertical();
-                BudgetUIComponents.BeginCard("Researchers (Monthly)");
-                Budget.BudgetChartRenderer.RenderHistoricalResearchersChart(_chartMonthsToShow, 280, 100);
-                BudgetUIComponents.EndCard();
+                SharedUIComponents.BeginCard("Researchers (Monthly)");
+                RP0.UI.Budget.BudgetChartRenderer.RenderHistoricalResearchersChart(_chartMonthsToShow, 280, 100);
+                SharedUIComponents.EndCard();
                 GUILayout.EndVertical();
 
                 GUILayout.EndHorizontal();
@@ -90,10 +89,10 @@ namespace RP0.UI.Science
             GUILayout.BeginHorizontal();
 
             // Current Science
-            BudgetUIComponents.RenderMetricCard(
+            SharedUIComponents.RenderMetricCard(
                 "Current Science",
                 $"{ScienceCalculator.FormatScience(_currentSnapshot.CurrentScience, "N1")} 🔬",
-                BudgetUIComponents.Colors.Accent,
+                SharedUIComponents.Colors.Accent,
                 KSPUtil.PrintDate(_currentSnapshot.Timestamp, false)
             );
 
@@ -106,7 +105,7 @@ namespace RP0.UI.Science
                 "• 62 science - Unlocks Satellite Era node\n" +
                 "  (Enables advanced orbital experiments)";
             
-            BudgetUIComponents.RenderMetricCard(
+            SharedUIComponents.RenderMetricCard(
                 "Total Collected",
                 ScienceCalculator.FormatScience(_currentSnapshot.TotalScienceCollected, "N1"),
                 new Color(0.3f, 0.8f, 0.6f), // Teal
@@ -122,7 +121,7 @@ namespace RP0.UI.Science
             double totalSalary = researcherSalary * 365.25; // Annual salary
             double salaryPerResearcher = researcherCount > 0 ? totalSalary / researcherCount : 0;
             
-            BudgetUIComponents.RenderMetricCard(
+            SharedUIComponents.RenderMetricCard(
                 "Researchers",
                 $"{researcherCount}",
                 new Color(0.4f, 0.7f, 0.9f), // Light blue
@@ -135,33 +134,9 @@ namespace RP0.UI.Science
                 GUILayout.FlexibleSpace();
                 
                 GUILayout.BeginVertical();
-                
                 GUILayout.BeginHorizontal();
-                var subtleStyle = new GUIStyle(GUI.skin.label)
-                {
-                    fontSize = 10,
-                    normal = { textColor = new Color(0.6f, 0.6f, 0.6f) },
-                    alignment = TextAnchor.MiddleRight
-                };
-                GUILayout.Label("Charts:", subtleStyle, GUILayout.Width(45));
-                
-                // Create pressed button style that matches the top bar
-                var pressedStyle = new GUIStyle(HighLogic.Skin.button);
-                pressedStyle.normal = pressedStyle.active;
-                
-                if (GUILayout.Button("1y", _chartMonthsToShow == 12 ? pressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 12;
-                if (GUILayout.Button("5y", _chartMonthsToShow == 60 ? pressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 60;
-                if (GUILayout.Button("10y", _chartMonthsToShow == 120 ? pressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 120;
-                if (GUILayout.Button("20y", _chartMonthsToShow == 240 ? pressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 240;
-                if (GUILayout.Button("30y", _chartMonthsToShow == 360 ? pressedStyle : HighLogic.Skin.button))
-                    _chartMonthsToShow = 360;
-                
+                _chartMonthsToShow = SharedUIComponents.RenderChartRangeSelector(_chartMonthsToShow);
                 GUILayout.EndHorizontal();
-                
                 GUILayout.EndVertical();
             }
 
@@ -173,7 +148,7 @@ namespace RP0.UI.Science
         /// </summary>
         private void RenderScienceGrid()
         {
-            BudgetUIComponents.BeginCard("");
+            SharedUIComponents.BeginCard("");
 
             // Define experiments (columns) - with practical descriptions for tooltips
             var experiments = new[]
@@ -216,7 +191,7 @@ namespace RP0.UI.Science
             {
                 fontSize = 12,
                 fontStyle = FontStyle.Italic,
-                normal = { textColor = BudgetUIComponents.Colors.TextSecondary },
+                normal = { textColor = SharedUIComponents.Colors.TextSecondary },
                 alignment = TextAnchor.LowerLeft
             };
 
@@ -225,7 +200,7 @@ namespace RP0.UI.Science
             {
                 fontSize = 13,
                 fontStyle = FontStyle.Bold,
-                normal = { textColor = BudgetUIComponents.Colors.TextPrimary },
+                normal = { textColor = SharedUIComponents.Colors.TextPrimary },
                 alignment = TextAnchor.MiddleLeft
             };
 
@@ -238,7 +213,7 @@ namespace RP0.UI.Science
             // Draw header background
             if (Event.current.type == EventType.Repaint)
             {
-                var headerBgTex = MakeTex(2, 2, BudgetUIComponents.Colors.HeaderBackground);
+                var headerBgTex = SharedUIComponents.MakeTex(2, 2, SharedUIComponents.Colors.HeaderBackground);
                 GUI.DrawTexture(headerRowRect, headerBgTex);
             }
 
@@ -250,7 +225,7 @@ namespace RP0.UI.Science
             {
                 fontSize = isTitleHovered ? 14 : 13,
                 fontStyle = FontStyle.Bold,
-                normal = { textColor = isTitleHovered ? Color.white : BudgetUIComponents.Colors.TextPrimary },
+                normal = { textColor = isTitleHovered ? Color.white : SharedUIComponents.Colors.TextPrimary },
                 alignment = TextAnchor.UpperLeft,
                 wordWrap = true
             };
@@ -318,14 +293,14 @@ namespace RP0.UI.Science
                 if (Event.current.type == EventType.Repaint)
                 {
                     Rect situationBgRect = new Rect(rowRect.x, rowRect.y, situationWidth, rowRect.height);
-                    var bgTex = MakeTex(2, 2, gradientBgColor);
+                    var bgTex = SharedUIComponents.MakeTex(2, 2, gradientBgColor);
                     GUI.DrawTexture(situationBgRect, bgTex);
                 }
 
                 // Draw subtle hover background over entire row
                 if (isHovered && Event.current.type == EventType.Repaint)
                 {
-                    var hoverTex = MakeTex(2, 2, new Color(0.25f, 0.25f, 0.28f, 0.3f));
+                    var hoverTex = SharedUIComponents.MakeTex(2, 2, new Color(0.25f, 0.25f, 0.28f, 0.3f));
                     GUI.DrawTexture(rowRect, hoverTex);
                 }
 
@@ -404,32 +379,9 @@ namespace RP0.UI.Science
 
             GUILayout.EndVertical();
 
-            BudgetUIComponents.EndCard();
+            SharedUIComponents.EndCard();
         }
 
-        /// <summary>
-        /// Create a solid color texture (cached to prevent GC issues)
-        /// </summary>
-        private static Dictionary<Color, Texture2D> _cachedTextures = new Dictionary<Color, Texture2D>();
-        private static Texture2D MakeTex(int width, int height, Color col)
-        {
-            // Use cached texture if available
-            if (_cachedTextures.TryGetValue(col, out Texture2D cached))
-                return cached;
-
-            Color[] pix = new Color[width * height];
-            for (int i = 0; i < pix.Length; i++)
-                pix[i] = col;
-
-            Texture2D result = new Texture2D(width, height);
-            result.SetPixels(pix);
-            result.Apply();
-            
-            // Cache the texture to prevent garbage collection
-            _cachedTextures[col] = result;
-            
-            return result;
-        }
 
         /// <summary>
         /// Explicit mapping of which experiment+situation combinations are biome-specific

@@ -15,9 +15,36 @@ namespace RP0.UI.Budget
         private const int MiniChartHeight = 60;
         private const int MiniChartWidth = 200;
 
-        // Cached textures to prevent garbage collection
-        private static Dictionary<Color, Texture2D> _cachedTextures = new Dictionary<Color, Texture2D>();
 
+        /// <summary>
+        /// Helper to show "no data" message
+        /// </summary>
+        private static void ShowNoDataMessage(string message = "No data to display")
+        {
+            var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
+            GUILayout.Label(message, style);
+        }
+
+        /// <summary>
+        /// Helper to validate and get historical periods
+        /// </summary>
+        private static List<LogPeriod> GetHistoricalPeriods(int periodsToShow)
+        {
+            if (CareerLog.Instance == null || !CareerLog.Instance.IsEnabled)
+            {
+                ShowNoDataMessage("Career logging is not enabled");
+                return null;
+            }
+
+            var periods = CareerLog.Instance.GetRecentPeriods(periodsToShow);
+            if (!periods.Any())
+            {
+                ShowNoDataMessage("No historical data available");
+                return null;
+            }
+
+            return periods;
+        }
 
         /// <summary>
         /// Render a horizontal bar chart for budget categories
@@ -26,8 +53,7 @@ namespace RP0.UI.Budget
         {
             if (items == null || items.Count == 0)
             {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("No data to display", style);
+                ShowNoDataMessage();
                 return;
             }
 
@@ -84,8 +110,7 @@ namespace RP0.UI.Budget
         {
             if (expenses == null || expenses.Count == 0)
             {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("No expenses to display", style);
+                ShowNoDataMessage("No expenses to display");
                 return;
             }
 
@@ -104,8 +129,7 @@ namespace RP0.UI.Budget
 
             if (total == 0)
             {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("No expenses", style);
+                ShowNoDataMessage("No expenses");
                 return;
             }
 
@@ -196,13 +220,6 @@ namespace RP0.UI.Budget
         /// </summary>
         public static void RenderHistoricalIncomeChart(BudgetPeriod displayPeriod, float width = ChartWidth, float height = ChartHeight)
         {
-            if (CareerLog.Instance == null || !CareerLog.Instance.IsEnabled)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("Career logging is not enabled", style);
-                return;
-            }
-
             // Adjust number of periods to show based on display period
             // Day view: show last 30 periods (months), Month view: show last 12 periods, Year view: show last 5 periods
             int periodsToShow = displayPeriod switch
@@ -213,13 +230,8 @@ namespace RP0.UI.Budget
                 _ => 12
             };
 
-            var periods = CareerLog.Instance.GetRecentPeriods(periodsToShow).ToList();
-            if (periods.Count == 0)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("No historical data available", style);
-                return;
-            }
+            var periods = GetHistoricalPeriods(periodsToShow);
+            if (periods == null) return;
 
             // Calculate income for each period (subsidy + other income + vessel recovery + program funds)
             var incomeData = periods.Select(p => new
@@ -280,20 +292,8 @@ namespace RP0.UI.Budget
         /// </summary>
         public static void RenderHistoricalFundsChart(int periodsToShow = 24, float width = ChartWidth, float height = ChartHeight)
         {
-            if (CareerLog.Instance == null || !CareerLog.Instance.IsEnabled)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("Career logging is not enabled", style);
-                return;
-            }
-
-            var periods = CareerLog.Instance.GetRecentPeriods(periodsToShow).ToList();
-            if (periods.Count == 0)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("No historical data available", style);
-                return;
-            }
+            var periods = GetHistoricalPeriods(periodsToShow);
+            if (periods == null) return;
 
             // Get funds and unlock credit data for each period
             var fundsData = periods.Select(p => new
@@ -495,20 +495,8 @@ namespace RP0.UI.Budget
         /// </summary>
         public static void RenderHistoricalConfidenceRepChart(int periodsToShow = 24, float width = ChartWidth, float height = ChartHeight)
         {
-            if (CareerLog.Instance == null || !CareerLog.Instance.IsEnabled)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("Career logging is not enabled", style);
-                return;
-            }
-
-            var periods = CareerLog.Instance.GetRecentPeriods(periodsToShow).ToList();
-            if (periods.Count == 0)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("No historical data available", style);
-                return;
-            }
+            var periods = GetHistoricalPeriods(periodsToShow);
+            if (periods == null) return;
 
             // Get data for each period
             var dataPoints = periods.Select(p => new
@@ -707,20 +695,8 @@ namespace RP0.UI.Budget
         /// </summary>
         public static void RenderHistoricalPersonnelChart(int periodsToShow = 24, float width = ChartWidth, float height = ChartHeight)
         {
-            if (CareerLog.Instance == null || !CareerLog.Instance.IsEnabled)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("Career logging is not enabled", style);
-                return;
-            }
-
-            var periods = CareerLog.Instance.GetRecentPeriods(periodsToShow).ToList();
-            if (periods.Count == 0)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("No historical data available", style);
-                return;
-            }
+            var periods = GetHistoricalPeriods(periodsToShow);
+            if (periods == null) return;
 
             // Get data for each period
             var dataPoints = periods.Select(p => new
@@ -839,136 +815,13 @@ namespace RP0.UI.Budget
         /// </summary>
         public static void RenderHistoricalScienceChart(int periodsToShow = 24, float width = ChartWidth, float height = ChartHeight)
         {
-            if (CareerLog.Instance == null || !CareerLog.Instance.IsEnabled)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("Career logging is not enabled", style);
-                return;
-            }
-
-            var periods = CareerLog.Instance.GetRecentPeriods(periodsToShow).ToList();
-            if (periods.Count == 0)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("No historical data available", style);
-                return;
-            }
-
-            // Get data for each period
-            var dataPoints = periods.Select(p => new
-            {
-                Period = p,
-                Science = p.ScienceEarned,
-                Label = ROUtils.DTUtils.UTToDate(p.StartUT).ToString("MMM yy")
-            }).ToList();
-
-            double maxScience = dataPoints.Max(d => d.Science);
-            double minScience = dataPoints.Min(d => d.Science);
-            
-            // Add 25% padding to range so lines don't feel crammed and you can see beyond current values
-            double range = maxScience - minScience;
-            if (range == 0) range = Math.Max(Math.Abs(maxScience) * 0.25, 10); // At least 25% range or 10
-            minScience = minScience - range * 0.25;
-            maxScience = maxScience + range * 0.25;
-
-            Rect chartRect = GUILayoutUtility.GetRect(width, height);
-            GUI.Box(chartRect, GUIContent.none);
-
-            float leftMargin = 35f;
-            float pointWidth = (chartRect.width - leftMargin - 10) / dataPoints.Count;
-            float chartBottom = chartRect.y + chartRect.height - 5; // No x-axis labels
-            float chartTop = chartRect.y + 30;
-            float availableHeight = chartBottom - chartTop;
-
-            // Draw Y-axis labels
-            var yAxisStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 10,
-                normal = { textColor = BudgetUIComponents.Colors.TextSecondary },
-                alignment = TextAnchor.MiddleRight
-            };
-
-            Rect maxLabelRect = new Rect(chartRect.x, chartTop - 5, leftMargin - 5, 15);
-            GUI.Label(maxLabelRect, $"{maxScience:F0}", yAxisStyle);
-
-            Rect minLabelRect = new Rect(chartRect.x, chartBottom - 10, leftMargin - 5, 15);
-            GUI.Label(minLabelRect, $"{minScience:F0}", yAxisStyle);
-
-            // Draw zero line if it's visible (thin white line)
-            if (minScience < 0 && maxScience > 0)
-            {
-                float zeroY = chartBottom - (float)((0 - minScience) / (maxScience - minScience)) * availableHeight;
-                Color zeroLineColor = new Color(1.0f, 1.0f, 1.0f, 0.4f); // Thin white with transparency
-                DrawRect(new Rect(chartRect.x + leftMargin, zeroY, chartRect.width - leftMargin - 10, 1), zeroLineColor);
-            }
-
-            // Draw legend
-            var legendStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 11,
-                normal = { textColor = BudgetUIComponents.Colors.TextPrimary },
-                alignment = TextAnchor.MiddleLeft
-            };
-
-            float legendY = chartRect.y + 5;
-            Rect sciLegendRect = new Rect(chartRect.x + 60, legendY, 150, 15);
-            var sciColor = BudgetUIComponents.Colors.Accent; // Blue
-            DrawRect(new Rect(sciLegendRect.x - 20, sciLegendRect.y + 3, 15, 10), sciColor);
-            GUI.Label(sciLegendRect, "Total Science Earned", legendStyle);
-            
-            // Add explanation for vertical lines
-            var lineExplainStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 9,
-                normal = { textColor = new Color(0.6f, 0.6f, 0.6f) },
-                alignment = TextAnchor.MiddleLeft
-            };
-            Rect lineExplainRect = new Rect(sciLegendRect.x + sciLegendRect.width + 5, legendY, 100, 15);
-            GUI.Label(lineExplainRect, "(lines = techs)", lineExplainStyle);
-
-            // Draw vertical lines for tech research events
-            Color techLineColor = new Color(1.0f, 1.0f, 1.0f, 0.3f); // White with transparency
-            for (int i = 0; i < dataPoints.Count; i++)
-            {
-                var data = dataPoints[i];
-                var techEvents = CareerLog.Instance?.GetTechEventsForPeriod(data.Period);
-                if (techEvents != null && techEvents.Count > 0)
-                {
-                    float x = chartRect.x + leftMargin + (i * pointWidth) + pointWidth / 2;
-                    DrawLine(new Vector2(x, chartTop), new Vector2(x, chartBottom), techLineColor, 1f);
-                }
-            }
-
-            // Draw lines connecting points
-            for (int i = 0; i < dataPoints.Count - 1; i++)
-            {
-                var data1 = dataPoints[i];
-                var data2 = dataPoints[i + 1];
-
-                float x1 = chartRect.x + leftMargin + (i * pointWidth) + pointWidth / 2;
-                float x2 = chartRect.x + leftMargin + ((i + 1) * pointWidth) + pointWidth / 2;
-
-                // Science line - thinner
-                float sciY1 = chartBottom - (float)((data1.Science - minScience) / (maxScience - minScience)) * availableHeight;
-                float sciY2 = chartBottom - (float)((data2.Science - minScience) / (maxScience - minScience)) * availableHeight;
-                DrawLine(new Vector2(x1, sciY1), new Vector2(x2, sciY2), sciColor, 1.25f);
-            }
-
-            // Draw points and labels
-            for (int i = 0; i < dataPoints.Count; i++)
-            {
-                var data = dataPoints[i];
-                float x = chartRect.x + leftMargin + (i * pointWidth) + pointWidth / 2;
-
-                // Add tooltip for vertical slice and brighten on hover
-                Rect sliceRect = new Rect(x - pointWidth / 2, chartTop, pointWidth, chartBottom - chartTop);
-                bool isHovered = sliceRect.Contains(Event.current.mousePosition);
-                
-                if (isHovered)
-                {
+            RenderSingleLineChart(
+                periodsToShow, width, height,
+                p => p.ScienceEarned,
+                "Total Science Earned",
+                BudgetUIComponents.Colors.Accent,
+                (data, tooltip) => {
                     var techEvents = CareerLog.Instance?.GetTechEventsForPeriod(data.Period);
-                    string tooltip = $"{data.Label}\nScience: {data.Science:F1}";
-                    
                     if (techEvents != null && techEvents.Count > 0)
                     {
                         tooltip += "\n\nTechs Researched:";
@@ -977,15 +830,24 @@ namespace RP0.UI.Budget
                             tooltip += $"\n  • {tech.NodeName}";
                         }
                     }
-                    
-                    GUI.tooltip = tooltip;
-                }
-
-                // Science point with hover effect - smaller dots
-                float sciY = chartBottom - (float)((data.Science - minScience) / (maxScience - minScience)) * availableHeight;
-                Color sciColorFinal = isHovered ? new Color(sciColor.r * 1.4f, sciColor.g * 1.4f, sciColor.b * 1.4f) : sciColor;
-                DrawCircle(new Vector2(x, sciY), isHovered ? 3.0f : 1.0f, sciColorFinal, 8);
-            }
+                    return tooltip;
+                },
+                (dataPoints, chartRect, leftMargin, pointWidth, chartTop, chartBottom) => {
+                    // Draw vertical lines for tech research events
+                    Color techLineColor = new Color(1.0f, 1.0f, 1.0f, 0.3f);
+                    for (int i = 0; i < dataPoints.Count; i++)
+                    {
+                        var data = dataPoints[i];
+                        var techEvents = CareerLog.Instance?.GetTechEventsForPeriod(data.Period);
+                        if (techEvents != null && techEvents.Count > 0)
+                        {
+                            float x = chartRect.x + leftMargin + (i * pointWidth) + pointWidth / 2;
+                            DrawLine(new Vector2(x, chartTop), new Vector2(x, chartBottom), techLineColor, 1f);
+                        }
+                    }
+                },
+                "(lines = techs)"
+            );
         }
 
         /// <summary>
@@ -993,44 +855,62 @@ namespace RP0.UI.Budget
         /// </summary>
         public static void RenderHistoricalResearchersChart(int periodsToShow = 24, float width = ChartWidth, float height = ChartHeight)
         {
-            if (CareerLog.Instance == null || !CareerLog.Instance.IsEnabled)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("Career logging is not enabled", style);
-                return;
-            }
+            RenderSingleLineChart(
+                periodsToShow, width, height,
+                p => p.NumResearchers,
+                "Researchers",
+                new Color(0.4f, 0.7f, 0.9f)
+            );
+        }
 
-            var periods = CareerLog.Instance.GetRecentPeriods(periodsToShow).ToList();
-            if (periods.Count == 0)
-            {
-                var style = new GUIStyle(GUI.skin.label) { normal = { textColor = BudgetUIComponents.Colors.TextSecondary } };
-                GUILayout.Label("No historical data available", style);
-                return;
-            }
+        /// <summary>
+        /// Data point for single-line charts
+        /// </summary>
+        private class ChartDataPoint
+        {
+            public LogPeriod Period { get; set; }
+            public double Value { get; set; }
+            public string Label { get; set; }
+        }
+
+        /// <summary>
+        /// Generic single-line chart renderer to eliminate duplication
+        /// </summary>
+        private static void RenderSingleLineChart(
+            int periodsToShow, float width, float height,
+            Func<LogPeriod, double> valueSelector,
+            string legendLabel,
+            Color lineColor,
+            Func<ChartDataPoint, string, string> tooltipEnhancer = null,
+            Action<List<ChartDataPoint>, Rect, float, float, float, float> drawExtraElements = null,
+            string extraLegendText = null)
+        {
+            var periods = GetHistoricalPeriods(periodsToShow);
+            if (periods == null) return;
 
             // Get data for each period
-            var dataPoints = periods.Select(p => new
+            var dataPoints = periods.Select(p => new ChartDataPoint
             {
                 Period = p,
-                Researchers = p.NumResearchers,
+                Value = valueSelector(p),
                 Label = ROUtils.DTUtils.UTToDate(p.StartUT).ToString("MMM yy")
             }).ToList();
 
-            double maxResearchers = dataPoints.Max(d => d.Researchers);
-            double minResearchers = dataPoints.Min(d => d.Researchers);
+            double maxValue = dataPoints.Max(d => d.Value);
+            double minValue = dataPoints.Min(d => d.Value);
             
-            // Add 25% padding to range so lines don't feel crammed and you can see beyond current values
-            double range = maxResearchers - minResearchers;
-            if (range == 0) range = Math.Max(Math.Abs(maxResearchers) * 0.25, 10); // At least 25% range or 10
-            minResearchers = minResearchers - range * 0.25;
-            maxResearchers = maxResearchers + range * 0.25;
+            // Add 25% padding to range
+            double range = maxValue - minValue;
+            if (range == 0) range = Math.Max(Math.Abs(maxValue) * 0.25, 10);
+            minValue = minValue - range * 0.25;
+            maxValue = maxValue + range * 0.25;
 
             Rect chartRect = GUILayoutUtility.GetRect(width, height);
             GUI.Box(chartRect, GUIContent.none);
 
             float leftMargin = 35f;
             float pointWidth = (chartRect.width - leftMargin - 10) / dataPoints.Count;
-            float chartBottom = chartRect.y + chartRect.height - 5; // No x-axis labels
+            float chartBottom = chartRect.y + chartRect.height - 5;
             float chartTop = chartRect.y + 30;
             float availableHeight = chartBottom - chartTop;
 
@@ -1042,18 +922,15 @@ namespace RP0.UI.Budget
                 alignment = TextAnchor.MiddleRight
             };
 
-            Rect maxLabelRect = new Rect(chartRect.x, chartTop - 5, leftMargin - 5, 15);
-            GUI.Label(maxLabelRect, $"{maxResearchers:F0}", yAxisStyle);
+            GUI.Label(new Rect(chartRect.x, chartTop - 5, leftMargin - 5, 15), $"{maxValue:F0}", yAxisStyle);
+            GUI.Label(new Rect(chartRect.x, chartBottom - 10, leftMargin - 5, 15), $"{minValue:F0}", yAxisStyle);
 
-            Rect minLabelRect = new Rect(chartRect.x, chartBottom - 10, leftMargin - 5, 15);
-            GUI.Label(minLabelRect, $"{minResearchers:F0}", yAxisStyle);
-
-            // Draw zero line if it's visible (thin white line)
-            if (minResearchers < 0 && maxResearchers > 0)
+            // Draw zero line if visible
+            if (minValue < 0 && maxValue > 0)
             {
-                float zeroY = chartBottom - (float)((0 - minResearchers) / (maxResearchers - minResearchers)) * availableHeight;
-                Color zeroLineColor = new Color(1.0f, 1.0f, 1.0f, 0.4f); // Thin white with transparency
-                DrawRect(new Rect(chartRect.x + leftMargin, zeroY, chartRect.width - leftMargin - 10, 1), zeroLineColor);
+                float zeroY = chartBottom - (float)((0 - minValue) / (maxValue - minValue)) * availableHeight;
+                DrawRect(new Rect(chartRect.x + leftMargin, zeroY, chartRect.width - leftMargin - 10, 1),
+                    new Color(1.0f, 1.0f, 1.0f, 0.4f));
             }
 
             // Draw legend
@@ -1065,10 +942,23 @@ namespace RP0.UI.Budget
             };
 
             float legendY = chartRect.y + 5;
-            Rect resLegendRect = new Rect(chartRect.x + 60, legendY, 150, 15);
-            var resColor = new Color(0.4f, 0.7f, 0.9f); // Light blue
-            DrawRect(new Rect(resLegendRect.x - 20, resLegendRect.y + 3, 15, 10), resColor);
-            GUI.Label(resLegendRect, "Researchers", legendStyle);
+            Rect legendRect = new Rect(chartRect.x + 60, legendY, 150, 15);
+            DrawRect(new Rect(legendRect.x - 20, legendRect.y + 3, 15, 10), lineColor);
+            GUI.Label(legendRect, legendLabel, legendStyle);
+            
+            if (!string.IsNullOrEmpty(extraLegendText))
+            {
+                var lineExplainStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 9,
+                    normal = { textColor = new Color(0.6f, 0.6f, 0.6f) },
+                    alignment = TextAnchor.MiddleLeft
+                };
+                GUI.Label(new Rect(legendRect.x + legendRect.width + 5, legendY, 100, 15), extraLegendText, lineExplainStyle);
+            }
+
+            // Draw extra elements (like event lines)
+            drawExtraElements?.Invoke(dataPoints, chartRect, leftMargin, pointWidth, chartTop, chartBottom);
 
             // Draw lines connecting points
             for (int i = 0; i < dataPoints.Count - 1; i++)
@@ -1079,31 +969,29 @@ namespace RP0.UI.Budget
                 float x1 = chartRect.x + leftMargin + (i * pointWidth) + pointWidth / 2;
                 float x2 = chartRect.x + leftMargin + ((i + 1) * pointWidth) + pointWidth / 2;
 
-                // Researchers line - thinner
-                float resY1 = chartBottom - (float)((data1.Researchers - minResearchers) / (maxResearchers - minResearchers)) * availableHeight;
-                float resY2 = chartBottom - (float)((data2.Researchers - minResearchers) / (maxResearchers - minResearchers)) * availableHeight;
-                DrawLine(new Vector2(x1, resY1), new Vector2(x2, resY2), resColor, 1.25f);
+                float y1 = chartBottom - (float)((data1.Value - minValue) / (maxValue - minValue)) * availableHeight;
+                float y2 = chartBottom - (float)((data2.Value - minValue) / (maxValue - minValue)) * availableHeight;
+                DrawLine(new Vector2(x1, y1), new Vector2(x2, y2), lineColor, 1.25f);
             }
 
-            // Draw points and labels
+            // Draw points
             for (int i = 0; i < dataPoints.Count; i++)
             {
                 var data = dataPoints[i];
                 float x = chartRect.x + leftMargin + (i * pointWidth) + pointWidth / 2;
 
-                // Add tooltip for vertical slice and brighten on hover
                 Rect sliceRect = new Rect(x - pointWidth / 2, chartTop, pointWidth, chartBottom - chartTop);
                 bool isHovered = sliceRect.Contains(Event.current.mousePosition);
                 
                 if (isHovered)
                 {
-                    GUI.tooltip = $"{data.Label}\nResearchers: {data.Researchers:F0}";
+                    string tooltip = $"{data.Label}\n{legendLabel}: {data.Value:F1}";
+                    GUI.tooltip = tooltipEnhancer?.Invoke(data, tooltip) ?? tooltip;
                 }
 
-                // Researchers point with hover effect - smaller dots
-                float resY = chartBottom - (float)((data.Researchers - minResearchers) / (maxResearchers - minResearchers)) * availableHeight;
-                Color resColorFinal = isHovered ? new Color(resColor.r * 1.4f, resColor.g * 1.4f, resColor.b * 1.4f) : resColor;
-                DrawCircle(new Vector2(x, resY), isHovered ? 3.0f : 1.0f, resColorFinal, 8);
+                float y = chartBottom - (float)((data.Value - minValue) / (maxValue - minValue)) * availableHeight;
+                Color finalColor = isHovered ? new Color(lineColor.r * 1.4f, lineColor.g * 1.4f, lineColor.b * 1.4f) : lineColor;
+                DrawCircle(new Vector2(x, y), isHovered ? 3.0f : 1.0f, finalColor, 8);
             }
         }
 
@@ -1138,15 +1026,8 @@ namespace RP0.UI.Budget
         {
             if (Event.current.type != EventType.Repaint) return;
 
-            // Use cached texture to prevent garbage collection issues
-            if (!_cachedTextures.TryGetValue(color, out Texture2D texture))
-            {
-                texture = new Texture2D(1, 1);
-                texture.SetPixel(0, 0, color);
-                texture.Apply();
-                _cachedTextures[color] = texture;
-            }
-
+            // Use shared texture cache
+            Texture2D texture = SharedUIComponents.MakeTex(1, 1, color);
             GUI.DrawTexture(rect, texture);
         }
 
@@ -1193,14 +1074,8 @@ namespace RP0.UI.Budget
             if (Event.current.type != EventType.Repaint) return;
             if (vertices.Length != 4) return;
 
-            // Use cached texture to prevent garbage collection issues
-            if (!_cachedTextures.TryGetValue(color, out Texture2D texture))
-            {
-                texture = new Texture2D(1, 1);
-                texture.SetPixel(0, 0, color);
-                texture.Apply();
-                _cachedTextures[color] = texture;
-            }
+            // Use shared texture cache
+            Texture2D texture = SharedUIComponents.MakeTex(1, 1, color);
 
             // Unity IMGUI doesn't have direct quad drawing, so we approximate with GUI.DrawTexture
             // This is a simplified version - for production, consider using GL.Begin/End

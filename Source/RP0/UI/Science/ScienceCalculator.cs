@@ -47,8 +47,8 @@ namespace RP0.UI.Science
             // Try to get from career log first
             if (CareerLog.Instance != null && CareerLog.Instance.IsEnabled)
             {
-                var periods = CareerLog.Instance.GetRecentPeriods(int.MaxValue).ToList();
-                if (periods.Count > 0)
+                var periods = CareerLog.Instance.GetRecentPeriods(int.MaxValue);
+                if (periods != null && periods.Count > 0)
                 {
                     // Get the most recent period's cumulative science
                     var latestPeriod = periods.OrderByDescending(p => p.StartUT).FirstOrDefault();

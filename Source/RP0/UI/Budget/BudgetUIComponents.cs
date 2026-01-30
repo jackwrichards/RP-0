@@ -9,24 +9,10 @@ namespace RP0.UI.Budget
     /// </summary>
     public static class BudgetUIComponents
     {
-        // Color scheme for modern budget UI
+        // Use shared colors directly - no need to re-export
         public static class Colors
         {
-            public static readonly Color Income = new Color(0.2f, 0.8f, 0.4f);           // Green
-            public static readonly Color Expense = new Color(0.9f, 0.3f, 0.3f);          // Red
-            public static readonly Color Neutral = new Color(0.8f, 0.8f, 0.8f);          // Lighter Gray
-            public static readonly Color Positive = new Color(0.3f, 0.9f, 0.5f);         // Bright Green
-            public static readonly Color Negative = new Color(1.0f, 0.4f, 0.4f);         // Bright Red
-            public static readonly Color Warning = new Color(1.0f, 0.7f, 0.2f);          // Orange
-            public static readonly Color Critical = new Color(1.0f, 0.2f, 0.2f);         // Bright Red
-            public static readonly Color Info = new Color(0.4f, 0.7f, 1.0f);             // Blue
-            public static readonly Color CardBackground = new Color(0.15f, 0.15f, 0.18f); // Dark
-            public static readonly Color CardBorder = new Color(0.3f, 0.3f, 0.35f);      // Medium Dark
-            public static readonly Color HeaderBackground = new Color(0.1f, 0.1f, 0.12f); // Very Dark
-            public static readonly Color TextPrimary = new Color(0.95f, 0.95f, 0.95f);   // Almost White
-            public static readonly Color TextSecondary = new Color(0.85f, 0.85f, 0.87f); // Brighter Light Gray
-            public static readonly Color Accent = new Color(0.3f, 0.6f, 1.0f);           // Blue Accent
-
+            // Budget-specific category colors
             public static Color GetCategoryColor(BudgetCategory category)
             {
                 return category switch
@@ -35,10 +21,26 @@ namespace RP0.UI.Budget
                     BudgetCategory.Personnel => new Color(0.4f, 0.7f, 0.9f),     // Light Blue
                     BudgetCategory.Operations => new Color(0.9f, 0.6f, 0.3f),    // Orange
                     BudgetCategory.Programs => new Color(0.3f, 0.8f, 0.6f),      // Teal
-                    BudgetCategory.Income => Income,
-                    _ => Neutral
+                    BudgetCategory.Income => SharedUIComponents.Colors.Income,
+                    _ => SharedUIComponents.Colors.Neutral
                 };
             }
+            
+            // Direct access to shared colors
+            public static Color Income => SharedUIComponents.Colors.Income;
+            public static Color Expense => SharedUIComponents.Colors.Expense;
+            public static Color Neutral => SharedUIComponents.Colors.Neutral;
+            public static Color Positive => SharedUIComponents.Colors.Positive;
+            public static Color Negative => SharedUIComponents.Colors.Negative;
+            public static Color Warning => SharedUIComponents.Colors.Warning;
+            public static Color Critical => SharedUIComponents.Colors.Critical;
+            public static Color Info => SharedUIComponents.Colors.Info;
+            public static Color CardBackground => SharedUIComponents.Colors.CardBackground;
+            public static Color CardBorder => SharedUIComponents.Colors.CardBorder;
+            public static Color HeaderBackground => SharedUIComponents.Colors.HeaderBackground;
+            public static Color TextPrimary => SharedUIComponents.Colors.TextPrimary;
+            public static Color TextSecondary => SharedUIComponents.Colors.TextSecondary;
+            public static Color Accent => SharedUIComponents.Colors.Accent;
         }
 
         // Cached GUIStyles
@@ -59,18 +61,18 @@ namespace RP0.UI.Budget
         private static GUIStyle _progressBarBackStyle;
         private static GUIStyle _progressBarFillStyle;
 
-        // Cached textures to prevent garbage collection
-        private static Dictionary<Color, Texture2D> _cachedTextures = new Dictionary<Color, Texture2D>();
-
         /// <summary>
         /// Initialize or refresh all styles
         /// </summary>
         public static void InitializeStyles()
         {
+            // Initialize shared styles first
+            SharedUIComponents.InitializeStyles();
+
             // Card style - Slightly more padding for breathing room
             _cardStyle = new GUIStyle(GUI.skin.box)
             {
-                normal = { background = MakeTex(2, 2, Colors.CardBackground) },
+                normal = { background = SharedUIComponents.MakeTex(2, 2, Colors.CardBackground) },
                 border = new RectOffset(2, 2, 2, 2),
                 padding = new RectOffset(6, 6, 4, 4),
                 margin = new RectOffset(2, 2, 2, 2)
@@ -79,7 +81,7 @@ namespace RP0.UI.Budget
             // Header style - Slightly more padding for breathing room
             _headerStyle = new GUIStyle(GUI.skin.box)
             {
-                normal = { background = MakeTex(2, 2, Colors.HeaderBackground), textColor = Colors.TextPrimary },
+                normal = { background = SharedUIComponents.MakeTex(2, 2, Colors.HeaderBackground), textColor = Colors.TextPrimary },
                 border = new RectOffset(1, 1, 1, 1),
                 padding = new RectOffset(6, 6, 4, 4),
                 margin = new RectOffset(0, 0, 0, 2),
@@ -168,7 +170,7 @@ namespace RP0.UI.Budget
             // Alert styles - Compact with minimal padding
             _alertCriticalStyle = new GUIStyle(GUI.skin.box)
             {
-                normal = { background = MakeTex(2, 2, new Color(Colors.Critical.r, Colors.Critical.g, Colors.Critical.b, 0.2f)), textColor = Colors.Critical },
+                normal = { background = SharedUIComponents.MakeTex(2, 2, new Color(Colors.Critical.r, Colors.Critical.g, Colors.Critical.b, 0.2f)), textColor = Colors.Critical },
                 padding = new RectOffset(6, 6, 3, 3),
                 margin = new RectOffset(0, 0, 1, 1),
                 fontSize = 11,
@@ -178,52 +180,29 @@ namespace RP0.UI.Budget
 
             _alertWarningStyle = new GUIStyle(_alertCriticalStyle)
             {
-                normal = { background = MakeTex(2, 2, new Color(Colors.Warning.r, Colors.Warning.g, Colors.Warning.b, 0.2f)), textColor = Colors.Warning }
+                normal = { background = SharedUIComponents.MakeTex(2, 2, new Color(Colors.Warning.r, Colors.Warning.g, Colors.Warning.b, 0.2f)), textColor = Colors.Warning }
             };
 
             _alertInfoStyle = new GUIStyle(_alertCriticalStyle)
             {
-                normal = { background = MakeTex(2, 2, new Color(Colors.Info.r, Colors.Info.g, Colors.Info.b, 0.2f)), textColor = Colors.Info },
+                normal = { background = SharedUIComponents.MakeTex(2, 2, new Color(Colors.Info.r, Colors.Info.g, Colors.Info.b, 0.2f)), textColor = Colors.Info },
                 fontStyle = FontStyle.Normal
             };
 
             // Progress bar styles
             _progressBarBackStyle = new GUIStyle(GUI.skin.box)
             {
-                normal = { background = MakeTex(2, 2, new Color(0.2f, 0.2f, 0.2f)) },
+                normal = { background = SharedUIComponents.MakeTex(2, 2, new Color(0.2f, 0.2f, 0.2f)) },
                 border = new RectOffset(0, 0, 0, 0),
                 padding = new RectOffset(0, 0, 0, 0)
             };
 
             _progressBarFillStyle = new GUIStyle(GUI.skin.box)
             {
-                normal = { background = MakeTex(2, 2, Colors.Accent) },
+                normal = { background = SharedUIComponents.MakeTex(2, 2, Colors.Accent) },
                 border = new RectOffset(0, 0, 0, 0),
                 padding = new RectOffset(0, 0, 0, 0)
             };
-        }
-
-        /// <summary>
-        /// Create a solid color texture (cached to prevent GC issues)
-        /// </summary>
-        private static Texture2D MakeTex(int width, int height, Color col)
-        {
-            // Use cached texture if available
-            if (_cachedTextures.TryGetValue(col, out Texture2D cached))
-                return cached;
-
-            Color[] pix = new Color[width * height];
-            for (int i = 0; i < pix.Length; i++)
-                pix[i] = col;
-
-            Texture2D result = new Texture2D(width, height);
-            result.SetPixels(pix);
-            result.Apply();
-            
-            // Cache the texture to prevent garbage collection
-            _cachedTextures[col] = result;
-            
-            return result;
         }
 
         /// <summary>
@@ -355,33 +334,11 @@ namespace RP0.UI.Budget
         }
 
         /// <summary>
-        /// Render a summary metric card with fixed height
+        /// Render a summary metric card with fixed height (delegates to SharedUIComponents)
         /// </summary>
         public static void RenderMetricCard(string label, string value, Color valueColor, string subtitle = null, string tooltip = null)
         {
-            if (_cardStyle == null) InitializeStyles();
-
-            GUILayout.BeginVertical(_cardStyle, GUILayout.MinWidth(130), GUILayout.Height(60));
-            
-            var labelContent = string.IsNullOrEmpty(tooltip) ? new GUIContent(label) : new GUIContent(label, tooltip);
-            GUILayout.Label(labelContent, _subtitleStyle);
-            
-            var valueStyle = new GUIStyle(_titleStyle) { normal = { textColor = valueColor } };
-            var valueContent = string.IsNullOrEmpty(tooltip) ? new GUIContent(value) : new GUIContent(value, tooltip);
-            GUILayout.Label(valueContent, valueStyle);
-            
-            if (!string.IsNullOrEmpty(subtitle))
-            {
-                var subtitleContent = string.IsNullOrEmpty(tooltip) ? new GUIContent(subtitle) : new GUIContent(subtitle, tooltip);
-                GUILayout.Label(subtitleContent, _smallLabelStyle);
-            }
-            else
-            {
-                // Add spacing to maintain consistent height when no subtitle
-                GUILayout.Label("", _smallLabelStyle);
-            }
-            
-            GUILayout.EndVertical();
+            SharedUIComponents.RenderMetricCard(label, value, valueColor, subtitle, tooltip);
         }
 
         /// <summary>
@@ -416,7 +373,7 @@ namespace RP0.UI.Budget
             GUILayout.FlexibleSpace();
             var circleStyle = new GUIStyle(GUI.skin.box)
             {
-                normal = { background = MakeTex(2, 2, circleColor) }
+                normal = { background = SharedUIComponents.MakeTex(2, 2, circleColor) }
             };
             GUILayout.Box(GUIContent.none, circleStyle, GUILayout.Width(10), GUILayout.Height(10));
             GUILayout.FlexibleSpace();
@@ -483,7 +440,7 @@ namespace RP0.UI.Budget
             {
                 var customFillStyle = new GUIStyle(_progressBarFillStyle)
                 {
-                    normal = { background = MakeTex(2, 2, fillColor.Value) }
+                    normal = { background = SharedUIComponents.MakeTex(2, 2, fillColor.Value) }
                 };
                 GUI.Box(fillRect, GUIContent.none, customFillStyle);
             }
@@ -616,7 +573,7 @@ namespace RP0.UI.Budget
                     Rect separatorRect = GUILayoutUtility.GetRect(GUIContent.none, GUIStyle.none, GUILayout.ExpandWidth(true), GUILayout.Height(1));
                     if (Event.current.type == EventType.Repaint)
                     {
-                        var separatorTex = MakeTex(2, 2, new Color(0.25f, 0.25f, 0.28f, 0.5f));
+                        var separatorTex = SharedUIComponents.MakeTex(2, 2, new Color(0.25f, 0.25f, 0.28f, 0.5f));
                         GUI.DrawTexture(separatorRect, separatorTex);
                     }
                 }
@@ -756,7 +713,7 @@ namespace RP0.UI.Budget
             GUILayout.Space(1);
             var separatorStyle = new GUIStyle(GUI.skin.box)
             {
-                normal = { background = MakeTex(2, 2, Colors.CardBorder) }
+                normal = { background = SharedUIComponents.MakeTex(2, 2, Colors.CardBorder) }
             };
             GUILayout.Box(GUIContent.none, separatorStyle, GUILayout.Height(1), GUILayout.ExpandWidth(true));
             GUILayout.Space(1);
