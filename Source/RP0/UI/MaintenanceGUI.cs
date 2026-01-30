@@ -25,6 +25,9 @@ namespace RP0
         
         // Chart time range selection
         private int _chartMonthsToShow = 120; // Default: 10 years (120 months)
+        
+        // View toggle for compact/full view
+        private bool _compactView = false;
 
         protected override void OnStart()
         {
@@ -55,7 +58,7 @@ namespace RP0
             // Always refresh data to keep it live
             RefreshBudgetData();
 
-            // Period selector and Warp button on same row
+            // Period selector (left), View toggle, Warp button (middle), Chart range (right)
             GUILayout.BeginHorizontal();
             
             BudgetPeriod newPeriod = BudgetUIComponents.RenderPeriodSelector(_selectedPeriod);
@@ -64,99 +67,157 @@ namespace RP0
                 _selectedPeriod = newPeriod;
             }
             
+            GUILayout.Space(8);
+            
+            // View toggle button
+            var pressedStyle = new GUIStyle(HighLogic.Skin.button);
+            pressedStyle.normal = pressedStyle.active;
+            
+            if (GUILayout.Button(_compactView ? "Compact" : "Full", _compactView ? pressedStyle : HighLogic.Skin.button, GUILayout.Height(24)))
+            {
+                _compactView = !_compactView;
+                TopWindow.RequestUIReset(); // Resize window when toggling view
+            }
+            
             GUILayout.FlexibleSpace();
             
-            // Warp to Fund Target button
+            // Warp to Fund Target button in the middle
             if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
             {
-                if (GUILayout.Button("Warp to Fund Target", HighLogic.Skin.button, GUILayout.Height(24)))
+                if (GUILayout.Button("Warp", HighLogic.Skin.button, GUILayout.Height(24)))
                 {
                     ShowWarpToFundsDlg();
                 }
             }
             
-            GUILayout.EndHorizontal();
-            GUILayout.Space(4);
-
-            // Top metrics row
-            RenderMetricsRow();
-
-            GUILayout.Space(4);
-
-            // Two-column layout: Budget summary on left, Alerts on right
-            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
             
-            // Left column: Budget summary
-            GUILayout.BeginVertical(GUILayout.Width(300));
-            BudgetUIComponents.RenderBudgetSummary(_currentSnapshot);
-            GUILayout.EndVertical();
-
-            GUILayout.Space(8);
-
-            // Right column: Alerts (including funds runway)
-            GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
-            
-            // Always show alerts section (includes funds runway if negative cash flow)
-            RenderAlertsSection();
-            
-            GUILayout.EndVertical();
-            
-            GUILayout.EndHorizontal();
-            GUILayout.Space(4);
-
-            // Historical charts
-            if (CareerLog.Instance != null && CareerLog.Instance.IsEnabled)
+            // Chart range selector on the right with subtle label (only in full view)
+            if (!_compactView && CareerLog.Instance != null && CareerLog.Instance.IsEnabled)
             {
-                // Funds and Subsidy charts side by side
+                var subtleStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 10,
+                    normal = { textColor = new Color(0.6f, 0.6f, 0.6f) },
+                    alignment = TextAnchor.MiddleRight
+                };
+                GUILayout.Label("Charts:", subtleStyle, GUILayout.Width(45));
+                
+                // Create pressed button style that matches the top bar
+                var chartPressedStyle = new GUIStyle(HighLogic.Skin.button);
+                chartPressedStyle.normal = chartPressedStyle.active;
+                
+                if (GUILayout.Button("1y", _chartMonthsToShow == 12 ? chartPressedStyle : HighLogic.Skin.button))
+                    _chartMonthsToShow = 12;
+                if (GUILayout.Button("5y", _chartMonthsToShow == 60 ? chartPressedStyle : HighLogic.Skin.button))
+                    _chartMonthsToShow = 60;
+                if (GUILayout.Button("10y", _chartMonthsToShow == 120 ? chartPressedStyle : HighLogic.Skin.button))
+                    _chartMonthsToShow = 120;
+                if (GUILayout.Button("20y", _chartMonthsToShow == 240 ? chartPressedStyle : HighLogic.Skin.button))
+                    _chartMonthsToShow = 240;
+                if (GUILayout.Button("30y", _chartMonthsToShow == 360 ? chartPressedStyle : HighLogic.Skin.button))
+                    _chartMonthsToShow = 360;
+            }
+            
+            GUILayout.EndHorizontal();
+            GUILayout.Space(4);
+
+            if (_compactView)
+            {
+                // Compact view: Only show Current Funds, Unlock Credit, and Budget Summary
                 GUILayout.BeginHorizontal();
                 
-                GUILayout.BeginVertical();
-                BudgetUIComponents.BeginCard("Funds & Unlock Credit (Monthly)");
-                BudgetChartRenderer.RenderHistoricalFundsChart(_chartMonthsToShow, 280, 100);
-                BudgetUIComponents.EndCard();
+                // Current Funds
+                BudgetUIComponents.RenderMetricCard(
+                    "Current Funds",
+                    $"√{_currentSnapshot.CurrentFunds:N0}",
+                    BudgetUIComponents.Colors.Accent,
+                    KSPUtil.PrintDate(_currentSnapshot.Timestamp, false)
+                );
+
+                GUILayout.Space(4);
+
+                // Unlock Credit
+                double unlockCreditValue = UnlockCreditHandler.Instance?.TotalCredit ?? 0d;
+                double unlockCreditRate = CurrencyUtils.Rate(TransactionReasonsRP0.RateUnlockCreditIncrease);
+                string unlockCreditTooltip = "Unlock credit is earned from paying your research teams (35% of their salaries). " +
+                                            "It reduces the cost of unlocking new parts, part upgrades, and tooling, " +
+                                            "simulating that R&D costs are already covered by your research budget.";
+                BudgetUIComponents.RenderMetricCard(
+                    "Unlock Credit",
+                    $"√{unlockCreditValue:N0}",
+                    new Color(1.0f, 0.9f, 0.3f), // Yellow
+                    $"Rate: {unlockCreditRate:F2}x",
+                    unlockCreditTooltip
+                );
+                
+                GUILayout.EndHorizontal();
+                
+                GUILayout.Space(4);
+                
+                // Budget summary - constrained to match width of two metric cards above (130 + 4 + 130 = 264)
+                GUILayout.BeginVertical(GUILayout.Width(264));
+                BudgetUIComponents.RenderBudgetSummary(_currentSnapshot);
+                GUILayout.EndVertical();
+            }
+            else
+            {
+                // Full view: Show everything
+                // Top metrics row
+                RenderMetricsRow();
+
+                GUILayout.Space(4);
+
+                // Two-column layout: Budget summary on left, Alerts on right
+                GUILayout.BeginHorizontal();
+                
+                // Left column: Budget summary
+                GUILayout.BeginVertical(GUILayout.Width(300));
+                BudgetUIComponents.RenderBudgetSummary(_currentSnapshot);
                 GUILayout.EndVertical();
 
                 GUILayout.Space(8);
 
-                GUILayout.BeginVertical();
-                BudgetUIComponents.BeginCard("Historical Subsidy (Monthly)");
-                BudgetChartRenderer.RenderHistoricalSubsidyChart(_chartMonthsToShow, 280, 100);
-                BudgetUIComponents.EndCard();
+                // Right column: Alerts (including funds runway)
+                GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
+                
+                // Always show alerts section (includes funds runway if negative cash flow)
+                RenderAlertsSection();
+                
                 GUILayout.EndVertical();
-
-                GUILayout.EndHorizontal();
-                GUILayout.Space(4);
-
-                // Confidence and Reputation chart
-                BudgetUIComponents.BeginCard("Confidence & Reputation (Monthly)");
-                BudgetChartRenderer.RenderHistoricalConfidenceRepChart(_chartMonthsToShow, 580, 200);
-                BudgetUIComponents.EndCard();
-                
-                // Chart time range selector at bottom - compact and subtle
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-                
-                var subtleStyle = new GUIStyle(GUI.skin.label)
-                {
-                    fontSize = 9,
-                    normal = { textColor = new Color(0.5f, 0.5f, 0.5f) },
-                    alignment = TextAnchor.MiddleRight
-                };
-                GUILayout.Label("Chart Range:", subtleStyle, GUILayout.Width(65));
-                
-                var buttonStyle = new GUIStyle(GUI.skin.button)
-                {
-                    fontSize = 9,
-                    padding = new RectOffset(6, 6, 2, 2)
-                };
-                
-                if (GUILayout.Button("1y", _chartMonthsToShow == 12 ? HighLogic.Skin.button : buttonStyle, GUILayout.Width(28), GUILayout.Height(18)))
-                    _chartMonthsToShow = 12;
-                if (GUILayout.Button("10y", _chartMonthsToShow == 120 ? HighLogic.Skin.button : buttonStyle, GUILayout.Width(32), GUILayout.Height(18)))
-                    _chartMonthsToShow = 120;
                 
                 GUILayout.EndHorizontal();
                 GUILayout.Space(4);
+
+                // Historical charts
+                if (CareerLog.Instance != null && CareerLog.Instance.IsEnabled)
+                {
+                    // Funds and Subsidy charts side by side
+                    GUILayout.BeginHorizontal();
+                    
+                    GUILayout.BeginVertical();
+                    BudgetUIComponents.BeginCard("Funds & Unlock Credit (Monthly)");
+                    BudgetChartRenderer.RenderHistoricalFundsChart(_chartMonthsToShow, 280, 100);
+                    BudgetUIComponents.EndCard();
+                    GUILayout.EndVertical();
+
+                    GUILayout.Space(8);
+
+                    GUILayout.BeginVertical();
+                    BudgetUIComponents.BeginCard("Personnel Count (Monthly)");
+                    BudgetChartRenderer.RenderHistoricalPersonnelChart(_chartMonthsToShow, 280, 100);
+                    BudgetUIComponents.EndCard();
+                    GUILayout.EndVertical();
+
+                    GUILayout.EndHorizontal();
+                    GUILayout.Space(4);
+
+                    // Confidence and Reputation chart
+                    BudgetUIComponents.BeginCard("Confidence & Reputation (Monthly)");
+                    BudgetChartRenderer.RenderHistoricalConfidenceRepChart(_chartMonthsToShow, 580, 200);
+                    BudgetUIComponents.EndCard();
+                    GUILayout.Space(4);
+                }
             }
         }
 
