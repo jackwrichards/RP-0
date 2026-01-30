@@ -1,6 +1,7 @@
 ﻿using ClickThroughFix;
 using System;
 using UnityEngine;
+using RP0.UI.Science;
 
 namespace RP0
 {
@@ -17,6 +18,7 @@ namespace RP0
         private readonly AvionicsGUI _avUI = new AvionicsGUI();
         private readonly ContractGUI _contractUI = new ContractGUI();
         private readonly CareerLogGUI _logUI = new CareerLogGUI();
+        private readonly ScienceGUI _scienceUI = new ScienceGUI();
 
         public TopWindow()
         {
@@ -45,6 +47,7 @@ namespace RP0
             _avUI.Start();
             _contractUI.Start();
             _logUI.Start();
+            _scienceUI.Start();
         }
 
         protected override void OnDestroy()
@@ -55,6 +58,7 @@ namespace RP0
             _avUI.Destroy();
             _contractUI.Destroy();
             _logUI.Destroy();
+            _scienceUI.Destroy();
         }
 
         public static void SwitchTabTo(UITab newTab)
@@ -75,6 +79,8 @@ namespace RP0
             GUILayout.BeginHorizontal();
             if (ShouldShowTab(UITab.Budget) && RenderToggleButton("Budget", _currentTab == UITab.Budget))
                 SwitchTabTo(UITab.Budget);
+            if (ShouldShowTab(UITab.Science) && RenderToggleButton("Science", _currentTab == UITab.Science))
+                SwitchTabTo(UITab.Science);
             if (ShouldShowTab(UITab.Tooling) && RenderToggleButton("Tooling", _currentTab == UITab.Tooling))
                 SwitchTabTo(UITab.Tooling);
             if (ShouldShowTab(UITab.Astronauts) && RenderToggleButton("Astronauts", _currentTab == UITab.Astronauts))
@@ -102,6 +108,9 @@ namespace RP0
                     {
                         case UITab.Budget:
                             _maintUI.RenderSummaryTab();
+                            break;
+                        case UITab.Science:
+                            _scienceUI.RenderScienceTab();
                             break;
                         case UITab.Facilities:
                             _maintUI.RenderFacilitiesTab();
