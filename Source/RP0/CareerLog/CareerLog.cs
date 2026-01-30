@@ -123,6 +123,27 @@ namespace RP0
                               .ToList();
         }
 
+        /// <summary>
+        /// Get tech research events for a specific period
+        /// </summary>
+        public List<TechResearchEvent> GetTechEventsForPeriod(LogPeriod period)
+        {
+            if (!IsEnabled || period == null) return new List<TechResearchEvent>();
+            return _techEvents.Where(t => t.IsInPeriod(period)).ToList();
+        }
+
+        public List<LaunchEvent> GetLaunchEventsForPeriod(LogPeriod period)
+        {
+            if (!IsEnabled || period == null) return new List<LaunchEvent>();
+            return _launchedVessels.Where(l => l.IsInPeriod(period)).ToList();
+        }
+
+        public List<ContractEvent> GetContractEventsForPeriod(LogPeriod period)
+        {
+            if (!IsEnabled || period == null) return new List<ContractEvent>();
+            return _contractDict.Where(c => c.IsInPeriod(period)).ToList();
+        }
+
         public override void OnAwake()
         {
             if (Instance != null)
