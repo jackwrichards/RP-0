@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
-using RP0.UI.Budget;
-using RP0.UI;
 
-namespace RP0
+namespace RP0.UI.Budget
 {
     /// <summary>
     /// Modern budget and maintenance UI with visual dashboards
@@ -59,7 +57,7 @@ namespace RP0
             // Always refresh data to keep it live
             RefreshBudgetData();
 
-            // Period selector (left), View toggle, Warp button (middle), Chart range (right)
+            // Period selector (left), View toggle, Warp button, Chart range (right)
             GUILayout.BeginHorizontal();
             
             BudgetPeriod newPeriod = BudgetUIComponents.RenderPeriodSelector(_selectedPeriod);
@@ -70,32 +68,27 @@ namespace RP0
             
             GUILayout.Space(8);
             
-            // View toggle button
-            var pressedStyle = new GUIStyle(HighLogic.Skin.button);
-            pressedStyle.normal = pressedStyle.active;
-            
-            if (GUILayout.Button(_compactView ? "Compact" : "Full", _compactView ? pressedStyle : HighLogic.Skin.button, GUILayout.Height(24)))
+            // View toggle button - no visual change between states
+            if (GUILayout.Button(_compactView ? "Compact" : "Full", HighLogic.Skin.button, GUILayout.Height(24)))
             {
                 _compactView = !_compactView;
                 TopWindow.RequestUIReset(); // Resize window when toggling view
             }
             
-            GUILayout.FlexibleSpace();
-            
-            // Warp to Fund Target button in the middle
+            // Warp button right next to compact button (only in compact view or always in space center)
             if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
             {
+                GUILayout.Space(8);
                 if (GUILayout.Button("Warp", HighLogic.Skin.button, GUILayout.Height(24)))
                 {
                     ShowWarpToFundsDlg();
                 }
             }
             
-            GUILayout.FlexibleSpace();
-            
             // Chart range selector on the right with subtle label (only in full view)
             if (!_compactView && CareerLog.Instance != null && CareerLog.Instance.IsEnabled)
             {
+                GUILayout.FlexibleSpace();
                 _chartMonthsToShow = SharedUIComponents.RenderChartRangeSelector(_chartMonthsToShow);
             }
             
@@ -105,6 +98,9 @@ namespace RP0
             if (_compactView)
             {
                 // Compact view: Only show Current Funds, Unlock Credit, and Budget Summary
+                // Constrain entire compact view to fixed width
+                GUILayout.BeginVertical(GUILayout.Width(240));
+                
                 GUILayout.BeginHorizontal();
                 
                 // Current Funds
@@ -135,9 +131,9 @@ namespace RP0
                 
                 GUILayout.Space(4);
                 
-                // Budget summary - constrained to match width of two metric cards above (130 + 4 + 130 = 264)
-                GUILayout.BeginVertical(GUILayout.Width(264));
+                // Budget summary
                 BudgetUIComponents.RenderBudgetSummary(_currentSnapshot);
+                
                 GUILayout.EndVertical();
             }
             else
@@ -621,14 +617,14 @@ namespace RP0
                     k.type != ProtoCrewMember.KerbalType.Crew)
                     continue;
 
-                double rt = Crew.CrewHandler.Instance.GetRetireTime(k.name);
+                double rt = RP0.Crew.CrewHandler.Instance.GetRetireTime(k.name);
                 if (rt == 0d)
                     continue;
 
                 GUILayout.BeginHorizontal();
                 GUILayout.Space(20);
                 GUILayout.Label(k.displayName, HighLogic.Skin.label, GUILayout.Width(144));
-                GUILayout.Label(Crew.CrewHandler.Instance.RetirementEnabled ? KSPUtil.PrintDate(rt, false) : "(n/a)", 
+                GUILayout.Label(RP0.Crew.CrewHandler.Instance.RetirementEnabled ? KSPUtil.PrintDate(rt, false) : "(n/a)",
                     HighLogic.Skin.label, GUILayout.Width(120));
                 
                 MaintenanceHandler.Instance.GetNautCost(k, out double cost, out double flightCost);

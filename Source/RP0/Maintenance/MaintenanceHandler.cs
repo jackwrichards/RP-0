@@ -40,7 +40,7 @@ namespace RP0
         public double lastRepUpdate = 0d;
 
         [KSPField(isPersistant = true)]
-        public MaintenanceGUI.MaintenancePeriod guiSelectedPeriod = MaintenanceGUI.MaintenancePeriod.Day;
+        public RP0.UI.Budget.MaintenanceGUI.MaintenancePeriod guiSelectedPeriod = RP0.UI.Budget.MaintenanceGUI.MaintenancePeriod.Day;
 
         public readonly Dictionary<string, double> IntegrationSalaries = new Dictionary<string, double>();
         public double Researchers => SpaceCenterManagement.Instance.Researchers;

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Text;
 using UnityEngine;
 
 namespace RP0
@@ -20,6 +22,12 @@ namespace RP0
         private static bool _useLastScreenshot = false;
 
         private RP0Settings _settings;
+        
+        // Career Log fields
+        private string _exportStatus;
+        private string _exportStatusWeb;
+        private string _serverUrl;
+        private string _token;
 
         protected override void OnStart()
         {
@@ -27,6 +35,15 @@ namespace RP0
             CommsPayload = _settings.CommsPayload;
             WeatherPayload = _settings.WeatherPayload;
             _newspaperTitle = _settings.NewspaperTitle;
+            _useLastScreenshot = _settings.UseLastScreenshot;
+            
+            // Career Log initialization
+            if (!string.IsNullOrWhiteSpace(_settings?.CareerLog_URL))
+            {
+                byte[] bytes = Convert.FromBase64String(_settings.CareerLog_URL);
+                _serverUrl = Encoding.UTF8.GetString(bytes);
+            }
+            _token = _settings?.CareerLog_Token;
         }
 
         public void RenderContractsTab()
@@ -96,6 +113,67 @@ namespace RP0
                 GUILayout.Space(10f);
                 _useLastScreenshot = GUILayout.Toggle(_useLastScreenshot, "Use last screenshot instead of auto screenshot for Newspaper");
                 _settings.UseLastScreenshot = _useLastScreenshot;
+            }
+            finally
+            {
+                GUILayout.EndVertical();
+            }
+            
+            // Career Log Export Section
+            GUILayout.BeginVertical();
+            try
+            {
+                GUILayout.Space(10f);
+                GUILayout.Space(10f);
+                GUILayout.Label($"Use this area to export your career progress.", BoldLabel);
+                GUILayout.Space(10f);
+                
+                if (GUILayout.Button("Export to file", HighLogic.Skin.button, GUILayout.ExpandWidth(false), GUILayout.Height(30), GUILayout.Width(125)))
+                {
+                    try
+                    {
+                        string path = KSPUtil.ApplicationRootPath + "/RP-1_Career.csv";
+                        CareerLog.Instance.ExportToFile(path);
+                        _exportStatus = $"Career progress exported to {Path.GetFullPath(path)}";
+                    }
+                    catch (Exception ex)
+                    {
+                        _exportStatus = $"Export failed: {ex.Message}";
+                    }
+                }
+                GUILayout.Label(_exportStatus);
+
+                GUILayout.Space(10f);
+                GUILayout.Label("Server URL:");
+                _serverUrl = GUILayout.TextField(_serverUrl, HighLogic.Skin.textField);
+
+                GUILayout.Label("Token:");
+                _token = GUILayout.TextField(_token, HighLogic.Skin.textField);
+
+                if (GUILayout.Button("Export to web", HighLogic.Skin.button, GUILayout.ExpandWidth(false), GUILayout.Height(30),
+                    GUILayout.Width(125)))
+                {
+                    try
+                    {
+                        _settings.CareerLog_URL = Convert.ToBase64String(Encoding.UTF8.GetBytes(_serverUrl));    // KSP really doesn't like the symbols that a typical URL contains
+                        _settings.CareerLog_Token = _token;
+
+                        _exportStatusWeb = null;
+                        CareerLog.Instance.ExportToWeb(_serverUrl, _token, () =>
+                        {
+                            _exportStatusWeb = "Career progress exported to web.";
+                        }, (errorMsg) =>
+                        {
+                            _exportStatusWeb = $"Career progress export failed. {errorMsg}";
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        RP0Debug.LogError($"{ex}");
+                        _exportStatusWeb = $"Export failed: {ex.Message}";
+                    }
+                }
+                GUILayout.Label(_exportStatusWeb);
             }
             finally
             {

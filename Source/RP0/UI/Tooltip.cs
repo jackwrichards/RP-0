@@ -35,15 +35,34 @@ namespace RP0
             if (_tooltipStyle == null)
             {
                 _tooltipStyle = new GUIStyle(HighLogic.Skin.label);
-                _tooltipStyle.normal.textColor = new Color32(224, 224, 224, 255);
-                _tooltipStyle.padding = new RectOffset(8, 8, 6, 6);
+                _tooltipStyle.normal.textColor = new Color32(240, 240, 240, 255);
+                _tooltipStyle.padding = new RectOffset(10, 10, 8, 8);
                 _tooltipStyle.alignment = TextAnchor.UpperLeft;
                 _tooltipStyle.wordWrap = true;
+                _tooltipStyle.fontSize = 13;
+                _tooltipStyle.border = new RectOffset(1, 1, 1, 1);
             }
 
             // The texture needs to be re-applied after every scene change
-            Texture2D backTex = new Texture2D(1, 1, TextureFormat.ARGB32, false);
-            backTex.SetPixel(0, 0, new Color(0.5f, 0.5f, 0.5f));
+            // Darker background with subtle outline
+            Texture2D backTex = new Texture2D(3, 3, TextureFormat.ARGB32, false);
+            // Fill center with dark background
+            for (int x = 0; x < 3; x++)
+            {
+                for (int y = 0; y < 3; y++)
+                {
+                    if (x == 0 || x == 2 || y == 0 || y == 2)
+                    {
+                        // Subtle outline (slightly lighter than background)
+                        backTex.SetPixel(x, y, new Color(0.25f, 0.25f, 0.25f, 0.95f));
+                    }
+                    else
+                    {
+                        // Darker background
+                        backTex.SetPixel(x, y, new Color(0.15f, 0.15f, 0.15f, 0.95f));
+                    }
+                }
+            }
             backTex.Apply();
             _tooltipStyle.normal.background = backTex;
 

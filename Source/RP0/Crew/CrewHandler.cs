@@ -234,16 +234,19 @@ namespace RP0.Crew
             bool isKCTExperimentalNode = hasTech && SpaceCenterManagement.Instance.TechListHas(ap.TechRequired);
             bool isPartUnlocked = !hasTech || (!isKCTExperimentalNode && ResearchAndDevelopment.GetTechnologyState(ap.TechRequired) == RDTech.State.Available);
 
-            if (!isKCTExperimentalNode && !isPartUnlocked)
-                return;
+            // No longer return early for locked parts - we'll generate courses for all parts
+            // if (!isKCTExperimentalNode && !isPartUnlocked)
+            //     return;
 
             bool isPartPurchased = ResearchAndDevelopment.PartModelPurchased(ap);
+            bool isLocked = !isKCTExperimentalNode && !isPartUnlocked; // Track if part is locked
 
             TrainingDatabase.SynonymReplace(ap.name, out string name);
             if (!_partSynsHandled.TryGetValue(name, out var coursePair))
             {
                 TrainingTemplate profCourse = GenerateCourseProf(ap, !isPartPurchased);
                 profCourse.partsCovered.Add(ap);
+                profCourse.isLocked = isLocked; // Set locked status
                 AppendToPartTooltip(ap, profCourse);
                 TrainingTemplate missionCourse = null;
 
@@ -253,6 +256,7 @@ namespace RP0.Crew
                 {
                     missionCourse = GenerateCourseMission(ap, !isPartPurchased);
                     missionCourse.partsCovered.Add(ap);
+                    missionCourse.isLocked = isLocked; // Set locked status
                     AppendToPartTooltip(ap, missionCourse);
                 }
                 _partSynsHandled.Add(name, new Tuple<TrainingTemplate, TrainingTemplate>(profCourse, missionCourse));
@@ -265,6 +269,7 @@ namespace RP0.Crew
                 // We might have generated as an experimental part
                 // And now the node's completing.
                 pc.isTemporary &= !isPartPurchased;
+                pc.isLocked &= isLocked; // Update locked status (can only become unlocked, not locked again)
                 if (!pc.partsCovered.Contains(ap))
                 {
                     pc.partsCovered.Add(ap);
@@ -275,6 +280,7 @@ namespace RP0.Crew
                 if (mc != null)
                 {
                     mc.isTemporary &= !isPartPurchased;
+                    mc.isLocked &= isLocked; // Update locked status
                     if (!mc.partsCovered.Contains(ap))
                     {
                         mc.partsCovered.Add(ap);

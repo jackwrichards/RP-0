@@ -469,15 +469,12 @@ namespace RP0.UI.Budget
 
             BudgetPeriod newPeriod = currentPeriod;
 
-            // Create pressed button style that matches the top bar
-            var pressedStyle = new GUIStyle(HighLogic.Skin.button);
-            pressedStyle.normal = pressedStyle.active;
-
-            if (GUILayout.Button("Day", currentPeriod == BudgetPeriod.Day ? pressedStyle : HighLogic.Skin.button))
+            // No visual change for selected period - buttons remain consistent
+            if (GUILayout.Button("Day", HighLogic.Skin.button, GUILayout.Height(24)))
                 newPeriod = BudgetPeriod.Day;
-            if (GUILayout.Button("Month", currentPeriod == BudgetPeriod.Month ? pressedStyle : HighLogic.Skin.button))
+            if (GUILayout.Button("Month", HighLogic.Skin.button, GUILayout.Height(24)))
                 newPeriod = BudgetPeriod.Month;
-            if (GUILayout.Button("Year", currentPeriod == BudgetPeriod.Year ? pressedStyle : HighLogic.Skin.button))
+            if (GUILayout.Button("Year", HighLogic.Skin.button, GUILayout.Height(24)))
                 newPeriod = BudgetPeriod.Year;
 
             GUILayout.EndHorizontal();
@@ -544,12 +541,6 @@ namespace RP0.UI.Budget
                     };
                     
                     string countText = $"{item.Count} {item.CountLabel}";
-                    
-                    // Add cost per unit if available, but not for engineers or scientists
-                    if (item.CostPerUnit != 0 && item.CountLabel != "engineers" && item.CountLabel != "scientists")
-                    {
-                        countText += $" ({BudgetCalculator.FormatCurrency(item.CostPerUnit, "N0")} ea)";
-                    }
                     
                     Rect countRect = new Rect(rowRect.x + 125, rowRect.y, 155, rowRect.height);
                     GUI.Label(countRect, countText, countStyle);

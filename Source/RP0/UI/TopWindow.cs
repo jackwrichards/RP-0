@@ -1,7 +1,9 @@
 ﻿using ClickThroughFix;
 using System;
 using UnityEngine;
+using RP0.UI.Budget;
 using RP0.UI.Science;
+using RP0.UI.Crew;
 
 namespace RP0
 {
@@ -14,11 +16,10 @@ namespace RP0
 
         private readonly MaintenanceGUI _maintUI = new MaintenanceGUI();
         private readonly ToolingGUI _toolUI = new ToolingGUI();
-        private readonly Crew.TrainingGUI _fsUI = new Crew.TrainingGUI();
         private readonly AvionicsGUI _avUI = new AvionicsGUI();
         private readonly ContractGUI _contractUI = new ContractGUI();
-        private readonly CareerLogGUI _logUI = new CareerLogGUI();
         private readonly ScienceGUI _scienceUI = new ScienceGUI();
+        private readonly CrewGUI _crewUI = new CrewGUI();
 
         public TopWindow()
         {
@@ -43,22 +44,20 @@ namespace RP0
         {
             _maintUI.Start();
             _toolUI.Start();
-            _fsUI.Start();
             _avUI.Start();
             _contractUI.Start();
-            _logUI.Start();
             _scienceUI.Start();
+            _crewUI.Start();
         }
 
         protected override void OnDestroy()
         {
             _maintUI.Destroy();
             _toolUI.Destroy();
-            _fsUI.Destroy();
             _avUI.Destroy();
             _contractUI.Destroy();
-            _logUI.Destroy();
             _scienceUI.Destroy();
+            _crewUI.Destroy();
         }
 
         public static void SwitchTabTo(UITab newTab)
@@ -81,18 +80,14 @@ namespace RP0
                 SwitchTabTo(UITab.Budget);
             if (ShouldShowTab(UITab.Science) && RenderToggleButton("Science", _currentTab == UITab.Science))
                 SwitchTabTo(UITab.Science);
+            if (ShouldShowTab(UITab.Crew) && RenderToggleButton("Crew", _currentTab == UITab.Crew))
+                SwitchTabTo(UITab.Crew);
             if (ShouldShowTab(UITab.Tooling) && RenderToggleButton("Tooling", _currentTab == UITab.Tooling))
                 SwitchTabTo(UITab.Tooling);
-            if (ShouldShowTab(UITab.Astronauts) && RenderToggleButton("Astronauts", _currentTab == UITab.Astronauts))
-                SwitchTabTo(UITab.Astronauts);
-            if (ShouldShowTab(UITab.Training) && RenderToggleButton("Training", _currentTab == UITab.Training))
-                SwitchTabTo(UITab.Training);
             if (ShouldShowTab(UITab.Avionics) && RenderToggleButton("Avionics", _currentTab == UITab.Avionics))
                 SwitchTabTo(UITab.Avionics);
             if (ShouldShowTab(UITab.Contracts) && RenderToggleButton("Settings", _currentTab == UITab.Contracts))
                 SwitchTabTo(UITab.Contracts);
-            if (ShouldShowTab(UITab.CareerLog) && RenderToggleButton("Career Log", _currentTab == UITab.CareerLog))
-                SwitchTabTo(UITab.CareerLog);
             GUILayout.EndHorizontal();
         }
 
@@ -111,6 +106,9 @@ namespace RP0
                             break;
                         case UITab.Science:
                             _scienceUI.RenderScienceTab();
+                            break;
+                        case UITab.Crew:
+                            _crewUI.RenderCrewTab();
                             break;
                         case UITab.Facilities:
                             _maintUI.RenderFacilitiesTab();
@@ -133,26 +131,11 @@ namespace RP0
                         case UITab.ToolingType:
                             _toolUI.RenderTypeTab();
                             break;
-                        case UITab.Astronauts:
-                            SwitchTabTo(_fsUI.RenderSummaryTab());
-                            break;
-                        case UITab.Training:
-                            SwitchTabTo(_fsUI.RenderCoursesTab());
-                            break;
-                        case UITab.NewCourse:
-                            SwitchTabTo(_fsUI.RenderNewCourseTab());
-                            break;
-                        case UITab.Naut:
-                            _fsUI.RenderNautTab();
-                            break;
                         case UITab.Avionics:
                             _avUI.RenderAvionicsTab();
                             break;
                         case UITab.Contracts:
                             _contractUI.RenderContractsTab();
-                            break;
-                        case UITab.CareerLog:
-                            _logUI.RenderTab();
                             break;
                         default:    // can't happen
                             break;

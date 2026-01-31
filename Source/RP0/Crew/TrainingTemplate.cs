@@ -34,6 +34,7 @@ namespace RP0.Crew
         public TrainingFlightEntry training;
         
         public bool isTemporary = false;
+        public bool isLocked = false; // True if part tech is not yet researched/queued
 
         public bool IsUnlocked
         {
