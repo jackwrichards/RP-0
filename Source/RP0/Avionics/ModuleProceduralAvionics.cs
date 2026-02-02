@@ -40,9 +40,8 @@ namespace RP0.ProceduralAvionics
         [KSPField(guiActiveEditor = true, guiName = "Avionics Cost", groupName = PAWGroup)]
         public string costDisplay;
 
-        [KSPField(guiActiveEditor = true, guiName = "Configure", groupName = PAWGroup)]
+        [KSPField(isPersistant = false, guiActiveEditor = true, guiName = "Configure", groupName = PAWGroup)]
         [UI_Toggle(enabledText = "Hide GUI", disabledText = "Show GUI")]
-        [NonSerialized]
         public bool showGUI;
 
         [KSPField]
