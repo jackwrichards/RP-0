@@ -2,6 +2,7 @@
 using System;
 using UnityEngine;
 using RP0.UI.Budget;
+using RP0.UI.Construction;
 using RP0.UI.Science;
 using RP0.UI.Crew;
 
@@ -9,7 +10,7 @@ namespace RP0
 {
     public class TopWindow : UIBase
     {
-        private static Rect _windowPos = new Rect(500, 240, 0, 0);
+        private static Rect _windowPos = new Rect(500, 240, 1000, 900);
         private static readonly int _mainWindowId = "RP0Top".GetHashCode();
         private static UITab _currentTab;
         private static bool _shouldResetUISize;
@@ -20,6 +21,7 @@ namespace RP0
         private readonly ContractGUI _contractUI = new ContractGUI();
         private readonly ScienceGUI _scienceUI = new ScienceGUI();
         private readonly CrewGUI _crewUI = new CrewGUI();
+        private readonly ConstructionGUI _constructionUI = new ConstructionGUI();
 
         public TopWindow()
         {
@@ -48,6 +50,7 @@ namespace RP0
             _contractUI.Start();
             _scienceUI.Start();
             _crewUI.Start();
+            _constructionUI.Start();
         }
 
         protected override void OnDestroy()
@@ -58,6 +61,7 @@ namespace RP0
             _contractUI.Destroy();
             _scienceUI.Destroy();
             _crewUI.Destroy();
+            _constructionUI.Destroy();
         }
 
         public static void SwitchTabTo(UITab newTab)
@@ -78,6 +82,8 @@ namespace RP0
             GUILayout.BeginHorizontal();
             if (ShouldShowTab(UITab.Budget) && RenderToggleButton("Budget", _currentTab == UITab.Budget))
                 SwitchTabTo(UITab.Budget);
+            if (ShouldShowTab(UITab.Construction) && RenderToggleButton("Construction", _currentTab == UITab.Construction))
+                SwitchTabTo(UITab.Construction);
             if (ShouldShowTab(UITab.Science) && RenderToggleButton("Science", _currentTab == UITab.Science))
                 SwitchTabTo(UITab.Science);
             if (ShouldShowTab(UITab.Crew) && RenderToggleButton("Crew", _currentTab == UITab.Crew))
@@ -117,7 +123,7 @@ namespace RP0
                             _maintUI.RenderIntegrationTab();
                             break;
                         case UITab.Construction:
-                            _maintUI.RenderConstructionTab();
+                            _constructionUI.RenderConstructionTab();
                             break;
                         case UITab.Programs:
                             _maintUI.RenderProgramTab();
