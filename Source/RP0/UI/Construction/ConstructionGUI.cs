@@ -28,12 +28,11 @@ namespace RP0.UI.Construction
         private readonly Dictionary<Guid, bool> _expandedLaunchComplexes = new Dictionary<Guid, bool>();
 
         // Column widths for launch complex table
-        // Current columns: Name, Mass Limit, Size Limit, Status, Expand
+        // Current columns: Name, Limit, Status, Expand
         private const float ExpandArrowWidth = 22f;
         private const float LCNameWidth = 155f;
-        private const float MassLimitWidth = 85f;
-        private const float SizeLimitWidth = 85f;
-        private const float StatusWidth = 100f;
+        private const float LimitWidth = 85f;
+        private const float StatusWidth = 70f;
 
         // Column widths for vessel table
         private const float VesselIndent = 20f;
@@ -126,16 +125,7 @@ namespace RP0.UI.Construction
                 new GUIContent("Name", "Launch Complex name"), headerStyle);
             currentX += LCNameWidth;
 
-            GUI.Label(new Rect(currentX, headerRect.y, MassLimitWidth, headerRect.height),
-                new GUIContent("Mass Limit", "Maximum supported mass"), headerStyle);
-            currentX += MassLimitWidth;
-
-            GUI.Label(new Rect(currentX, headerRect.y, SizeLimitWidth, headerRect.height),
-                new GUIContent("Size Limit", "Maximum supported size"), headerStyle);
-            currentX += SizeLimitWidth;
-
-            GUI.Label(new Rect(currentX, headerRect.y, StatusWidth, headerRect.height),
-                new GUIContent("Status", "Operational status"), headerStyle);
+            // Right-side column headers removed per request
         }
 
         private void RenderLaunchComplexRow(LaunchComplex launchComplex)
@@ -151,10 +141,18 @@ namespace RP0.UI.Construction
             Rect rowRect = GUILayoutUtility.GetRect(LeftPanelWidth - 40f, rowHeight);
             bool isHovered = rowRect.Contains(Event.current.mousePosition);
 
-            // Handle row click to toggle expansion and select
-            if (Event.current.type == EventType.MouseDown && isHovered && Event.current.button == 0)
+            // Handle row click to toggle expansion and select - only on the arrow area
+            Rect arrowRect = new Rect(rowRect.x + rowRect.width - ExpandArrowWidth, rowRect.y, ExpandArrowWidth, rowRect.height);
+            if (Event.current.type == EventType.MouseDown && arrowRect.Contains(Event.current.mousePosition) && Event.current.button == 0)
             {
                 ToggleExpanded(_expandedLaunchComplexes, lcId);
+                SelectLaunchComplex(launchComplex);
+                Event.current.Use();
+            }
+
+            // Handle row selection on click (anywhere but arrow)
+            if (Event.current.type == EventType.MouseDown && isHovered && !arrowRect.Contains(Event.current.mousePosition) && Event.current.button == 0)
+            {
                 SelectLaunchComplex(launchComplex);
                 Event.current.Use();
             }
@@ -184,32 +182,31 @@ namespace RP0.UI.Construction
             };
 
             // Name
-            var nameStyle = new GUIStyle(cellStyle) { fontStyle = FontStyle.Bold };
+            var nameStyle = new GUIStyle(cellStyle) { fontStyle = FontStyle.Bold, richText = true };
+            string lcNameText = $"{launchComplex.Name} <color=#9aa0a6>(Limit: {launchComplex.SupportedMassAsPrettyText})</color>";
             GUI.Label(new Rect(currentX, rowRect.y, LCNameWidth, rowRect.height),
-                launchComplex.Name, nameStyle);
+                lcNameText, nameStyle);
             currentX += LCNameWidth;
 
-            // Mass Limit
-            GUI.Label(new Rect(currentX, rowRect.y, MassLimitWidth, rowRect.height),
-                launchComplex.SupportedMassAsPrettyText, cellStyle);
-            currentX += MassLimitWidth;
+            // Limit moved next to LC name
+            currentX += LimitWidth;
 
-            // Size Limit
-            GUI.Label(new Rect(currentX, rowRect.y, SizeLimitWidth, rowRect.height),
-                launchComplex.SupportedSizeAsPrettyText, cellStyle);
-            currentX += SizeLimitWidth;
-
-            // Status
-            string status = launchComplex.IsOperational ? "Operational" : "Building";
-            var statusColor = launchComplex.IsOperational ? new Color(0.3f, 0.8f, 0.4f) : new Color(1f, 0.7f, 0.3f);
+            // Status (hangars do not show status)
+            bool isHangar = launchComplex.LCType == LaunchComplexType.Hangar;
+            string status = isHangar ? string.Empty : (launchComplex.IsOperational ? "Idle" : "Building");
+            var statusColor = launchComplex.IsOperational ? new Color(1f, 1f, 0.3f) : new Color(1f, 0.7f, 0.3f);
             var statusStyle = new GUIStyle(cellStyle) { normal = { textColor = statusColor } };
             GUI.Label(new Rect(currentX, rowRect.y, StatusWidth, rowRect.height),
                 status, statusStyle);
             currentX += StatusWidth;
 
-            // Expand/collapse arrow indicator (on the right, grey color)
-            var arrowStyle = new GUIStyle(HighLogic.Skin.label) { normal = { textColor = new Color(0.5f, 0.5f, 0.5f) } };
-            GUI.Label(new Rect(currentX, rowRect.y, ExpandArrowWidth, rowRect.height),
+            // Expand/collapse arrow indicator (right aligned)
+            var arrowStyle = new GUIStyle(HighLogic.Skin.label)
+            {
+                alignment = TextAnchor.MiddleRight,
+                normal = { textColor = new Color(0.5f, 0.5f, 0.5f) }
+            };
+            GUI.Label(new Rect(rowRect.x + rowRect.width - ExpandArrowWidth, rowRect.y, ExpandArrowWidth, rowRect.height),
                 isExpanded ? "▼" : "▶", arrowStyle);
 
             GUILayout.Space(1);
@@ -350,22 +347,14 @@ namespace RP0.UI.Construction
 
             // Vessel Name (aligned with LC Name column)
             string vesselName = vessel.shipName;
-            if (vesselName.Length > 16)
-                vesselName = vesselName.Substring(0, 13) + "...";
+            string vesselNameText = $"{vesselName} <color=#9aa0a6>({vessel.mass:N1}t)</color>";
+            var vesselNameStyle = new GUIStyle(cellStyle) { richText = true };
             GUI.Label(new Rect(currentX + 20f, rowRect.y, LCNameWidth - 20f, rowRect.height),
-                new GUIContent(vesselName, vessel.shipName), cellStyle);
+                new GUIContent(vesselNameText, vessel.shipName), vesselNameStyle);
             currentX += LCNameWidth;
 
-            // Mass (aligned with Mass Limit column)
-            GUI.Label(new Rect(currentX, rowRect.y, MassLimitWidth, rowRect.height),
-                $"{vessel.mass:N1}t", cellStyle);
-            currentX += MassLimitWidth;
-
-            // Size (aligned with Size Limit column)
-            string sizeText = $"{vessel.ShipSize.x:N1}×{vessel.ShipSize.y:N1}m";
-            GUI.Label(new Rect(currentX, rowRect.y, SizeLimitWidth, rowRect.height),
-                sizeText, cellStyle);
-            currentX += SizeLimitWidth;
+            // Mass moved next to vessel name
+            currentX += LimitWidth;
 
             // Status (aligned with Status column)
             float progressFraction = GetProgressFraction(vessel, isProduction);
@@ -379,14 +368,19 @@ namespace RP0.UI.Construction
             // Actions (after arrow space)
             currentX += ExpandArrowWidth;
             float actionX = currentX;
-            string actionLabel = isProduction ? "Rollout" : "Launch";
+        
+            // For hangars, always show Launch (instant); for other LCs show Rollout if in production
+            bool isHangar = _selectedLaunchComplex != null && _selectedLaunchComplex.LCType == LaunchComplexType.Hangar;
+            bool showLaunchOnly = isHangar || !isProduction;
+        
+            string actionLabel = showLaunchOnly ? "Launch" : "Rollout";
             if (GUI.Button(new Rect(actionX, rowRect.y + 2, 52, rowRect.height - 4),
-                new GUIContent(actionLabel, isProduction ? "Begin rollout process" : "Launch vessel"), HighLogic.Skin.button))
+                new GUIContent(actionLabel, showLaunchOnly ? "Launch vessel" : "Begin rollout process"), HighLogic.Skin.button))
             {
-                if (isProduction)
-                    OnBeginRollout(_selectedLaunchComplex, vessel);
-                else
+                if (showLaunchOnly)
                     OnLaunchVessel(_selectedLaunchComplex, vessel);
+                else
+                    OnBeginRollout(_selectedLaunchComplex, vessel);
             }
             actionX += 54;
 
