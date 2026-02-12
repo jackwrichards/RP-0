@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using RP0.UI;
+using KSP.UI.Screens;
 
 namespace RP0.UI.Construction
 {
@@ -28,15 +30,13 @@ namespace RP0.UI.Construction
         private readonly Dictionary<Guid, bool> _expandedLaunchComplexes = new Dictionary<Guid, bool>();
 
         // Column widths for launch complex table
-        // Current columns: Name, Limit, Status, Expand
+        // Current columns: Name (expanded), Status (right-aligned)
         private const float ExpandArrowWidth = 22f;
-        private const float LCNameWidth = 155f;
-        private const float LimitWidth = 85f;
         private const float StatusWidth = 70f;
 
         // Column widths for vessel table
         private const float VesselIndent = 20f;
-        private const float VesselNameWidth = 155f;
+        private const float VesselNameWidth = 140f;
         private const float VesselMassWidth = 85f;
         private const float VesselSizeWidth = 85f;
         private const float VesselStatusWidth = 100f;
@@ -75,11 +75,6 @@ namespace RP0.UI.Construction
             var currentSC = SpaceCenterManagement.Instance?.ActiveSC;
             if (currentSC != null && currentSC.LaunchComplexes.Count > 0)
             {
-                // Render table header
-                RenderLaunchComplexTableHeader();
-
-                GUILayout.Space(2);
-
                 // Render launch complex rows
                 foreach (LaunchComplex launchComplex in currentSC.LaunchComplexes)
                 {
@@ -96,36 +91,6 @@ namespace RP0.UI.Construction
             SharedUIComponents.EndCard();
 
             GUILayout.EndVertical();
-        }
-
-        private void RenderLaunchComplexTableHeader()
-        {
-            const float rowHeight = 28f;
-            Rect headerRect = GUILayoutUtility.GetRect(LeftPanelWidth - 40f, rowHeight);
-
-            // Draw header background
-            if (Event.current.type == EventType.Repaint)
-            {
-                var headerBgTex = SharedUIComponents.MakeTex(2, 2, SharedUIComponents.Colors.HeaderBackground);
-                GUI.DrawTexture(headerRect, headerBgTex);
-            }
-
-            float currentX = headerRect.x;
-
-            var headerStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 14,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = SharedUIComponents.Colors.TextPrimary },
-                alignment = TextAnchor.MiddleLeft
-            };
-
-            // Column headers with tooltips
-            GUI.Label(new Rect(currentX, headerRect.y, LCNameWidth, headerRect.height),
-                new GUIContent("Name", "Launch Complex name"), headerStyle);
-            currentX += LCNameWidth;
-
-            // Right-side column headers removed per request
         }
 
         private void RenderLaunchComplexRow(LaunchComplex launchComplex)
@@ -183,22 +148,17 @@ namespace RP0.UI.Construction
 
             // Name
             var nameStyle = new GUIStyle(cellStyle) { fontStyle = FontStyle.Bold, richText = true };
-            string lcNameText = $"{launchComplex.Name} <color=#9aa0a6>(Limit: {launchComplex.SupportedMassAsPrettyText})</color>";
-            GUI.Label(new Rect(currentX, rowRect.y, LCNameWidth, rowRect.height),
+            string lcNameText = $"{launchComplex.Name} <color=#9aa0a6><size=11>(Limit: {launchComplex.SupportedMassAsPrettyText})</size></color>";
+            GUI.Label(new Rect(currentX, rowRect.y, rowRect.width - StatusWidth - 10f, rowRect.height),
                 lcNameText, nameStyle);
-            currentX += LCNameWidth;
 
-            // Limit moved next to LC name
-            currentX += LimitWidth;
-
-            // Status (hangars do not show status)
+            // Status (hangars do not show status) - positioned on the right
             bool isHangar = launchComplex.LCType == LaunchComplexType.Hangar;
             string status = isHangar ? string.Empty : (launchComplex.IsOperational ? "Idle" : "Building");
             var statusColor = launchComplex.IsOperational ? new Color(1f, 1f, 0.3f) : new Color(1f, 0.7f, 0.3f);
             var statusStyle = new GUIStyle(cellStyle) { normal = { textColor = statusColor } };
-            GUI.Label(new Rect(currentX, rowRect.y, StatusWidth, rowRect.height),
+            GUI.Label(new Rect(rowRect.x + rowRect.width - StatusWidth - ExpandArrowWidth, rowRect.y, StatusWidth, rowRect.height),
                 status, statusStyle);
-            currentX += StatusWidth;
 
             // Expand/collapse arrow indicator (right aligned)
             var arrowStyle = new GUIStyle(HighLogic.Skin.label)
@@ -313,7 +273,7 @@ namespace RP0.UI.Construction
             if (vessel == null)
                 return;
 
-            const float rowHeight = 28f;
+            const float rowHeight = 32f;
             Rect rowRect = GUILayoutUtility.GetRect(LeftPanelWidth - 40f, rowHeight);
             bool isHovered = rowRect.Contains(Event.current.mousePosition);
 
@@ -344,60 +304,122 @@ namespace RP0.UI.Construction
             // Add small indent indicator for hierarchy
             var indentStyle = new GUIStyle(GUI.skin.label) { normal = { textColor = new Color(0.5f, 0.5f, 0.5f) } };
             GUI.Label(new Rect(currentX, rowRect.y, 20f, rowRect.height), "  └", indentStyle);
+            currentX += 20f;
 
-            // Vessel Name (aligned with LC Name column)
+            // Vessel Name with mass (aligned with LC Name column)
             string vesselName = vessel.shipName;
             string vesselNameText = $"{vesselName} <color=#9aa0a6>({vessel.mass:N1}t)</color>";
             var vesselNameStyle = new GUIStyle(cellStyle) { richText = true };
-            GUI.Label(new Rect(currentX + 20f, rowRect.y, LCNameWidth - 20f, rowRect.height),
-                new GUIContent(vesselNameText, vessel.shipName), vesselNameStyle);
-            currentX += LCNameWidth;
+            float nameWidthAvailable = rowRect.width - StatusWidth - ExpandArrowWidth - 30f;
+            Rect nameRect = new Rect(currentX, rowRect.y, nameWidthAvailable, rowRect.height);
+            GUI.Label(nameRect, new GUIContent(vesselNameText, vessel.shipName), vesselNameStyle);
+            
+            // Handle click on name to edit
+            if (Event.current.type == EventType.MouseDown && nameRect.Contains(Event.current.mousePosition))
+            {
+                OnEditVessel(vessel);
+                Event.current.Use();
+            }
+            
+            currentX += nameWidthAvailable;
 
-            // Mass moved next to vessel name
-            currentX += LimitWidth;
+            // Dynamic status display with progress bars
+            RenderVesselStatusDisplay(vessel, isProduction, new Rect(currentX - 40f, rowRect.y, 220f, rowRect.height));
 
-            // Status (aligned with Status column)
-            float progressFraction = GetProgressFraction(vessel, isProduction);
-            string statusText = isProduction ? $"{progressFraction * 100f:0}%" : "Ready";
-            Color statusColor = isProduction ? new Color(0.3f, 0.7f, 0.4f) : new Color(0.4f, 0.6f, 0.9f);
-            var statusStyle = new GUIStyle(cellStyle) { normal = { textColor = statusColor } };
-            GUI.Label(new Rect(currentX, rowRect.y, StatusWidth, rowRect.height),
-                statusText, statusStyle);
-            currentX += StatusWidth;
+            GUILayout.Space(1);
+        }
 
-            // Actions (after arrow space)
-            currentX += ExpandArrowWidth;
-            float actionX = currentX;
-        
-            // For hangars, always show Launch (instant); for other LCs show Rollout if in production
+        private void RenderVesselStatusDisplay(VesselProject vessel, bool isProduction, Rect displayRect)
+        {
+            float barHeight = 14f;
+            float barY = displayRect.y + (displayRect.height - barHeight) / 2f;
+            float barWidth = 130f;
+            float barX = displayRect.x;
+
+            if (isProduction)
+            {
+                // Simple blue progress bar
+                float progressFraction = GetProgressFraction(vessel, true);
+
+                // Draw background
+                if (Event.current.type == EventType.Repaint)
+                {
+                    var bgTex = SharedUIComponents.MakeTex(2, 2, new Color(0.2f, 0.2f, 0.22f, 0.8f));
+                    GUI.DrawTexture(new Rect(barX, barY, barWidth, barHeight), bgTex);
+
+                    // Draw simple blue fill
+                    Color blueColor = new Color(0.3f, 0.7f, 1f, 0.9f);
+                    float fillWidth = barWidth * progressFraction;
+                    Rect fillRect = new Rect(barX, barY, fillWidth, barHeight);
+                    var fillTex = SharedUIComponents.MakeTex(2, 2, blueColor);
+                    GUI.DrawTexture(fillRect, fillTex);
+                }
+
+                // Draw percentage text
+                var percentStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleCenter,
+                    fontSize = 10,
+                    fontStyle = FontStyle.Bold,
+                    normal = { textColor = Color.white }
+                };
+                GUI.Label(new Rect(barX, barY - 3f, barWidth, barHeight + 6f), $"{progressFraction * 100f:F0}%", percentStyle);
+
+                barX += barWidth + 6f;
+            }
+            else
+            {
+                // Simple orange bar for storage
+                if (Event.current.type == EventType.Repaint)
+                {
+                    var bgTex = SharedUIComponents.MakeTex(2, 2, new Color(1f, 0.6f, 0.2f, 0.85f));
+                    GUI.DrawTexture(new Rect(barX, barY, barWidth, barHeight), bgTex);
+                }
+
+                // Draw "Storage" text
+                var storageStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleCenter,
+                    fontSize = 9,
+                    fontStyle = FontStyle.Bold,
+                    normal = { textColor = Color.white }
+                };
+                GUI.Label(new Rect(barX, barY - 3f, barWidth, barHeight + 6f), "Storage", storageStyle);
+
+                barX += barWidth + 6f;
+            }
+
+            // Action button (Rollout/Launch)
             bool isHangar = _selectedLaunchComplex != null && _selectedLaunchComplex.LCType == LaunchComplexType.Hangar;
             bool showLaunchOnly = isHangar || !isProduction;
-        
             string actionLabel = showLaunchOnly ? "Launch" : "Rollout";
-            if (GUI.Button(new Rect(actionX, rowRect.y + 2, 52, rowRect.height - 4),
-                new GUIContent(actionLabel, showLaunchOnly ? "Launch vessel" : "Begin rollout process"), HighLogic.Skin.button))
+            
+            float buttonWidth = 52f;
+            Rect actionButtonRect = new Rect(barX, displayRect.y + 2f, buttonWidth, displayRect.height - 4f);
+            
+            if (GUI.Button(actionButtonRect, new GUIContent(actionLabel, showLaunchOnly ? "Launch vessel" : "Begin rollout process"), HighLogic.Skin.button))
             {
                 if (showLaunchOnly)
                     OnLaunchVessel(_selectedLaunchComplex, vessel);
                 else
                     OnBeginRollout(_selectedLaunchComplex, vessel);
             }
-            actionX += 54;
 
-            if (GUI.Button(new Rect(actionX, rowRect.y + 2, 20, rowRect.height - 4),
-                new GUIContent("✎", "Edit vessel configuration"), HighLogic.Skin.button))
+            barX += buttonWidth + 2f;
+
+            // Delete button (red X)
+            float deleteButtonWidth = 20f;
+            Rect deleteButtonRect = new Rect(barX, displayRect.y + 2f, deleteButtonWidth, displayRect.height - 4f);
+            var redButtonStyle = new GUIStyle(HighLogic.Skin.button)
             {
-                OnEditVessel(vessel);
-            }
-            actionX += 22;
-
-            if (GUI.Button(new Rect(actionX, rowRect.y + 2, 20, rowRect.height - 4),
-                new GUIContent("✕", "Delete vessel"), HighLogic.Skin.button))
+                normal = { textColor = new Color(1f, 0.3f, 0.3f) },
+                hover = { textColor = new Color(1f, 0.5f, 0.5f) }
+            };
+            
+            if (GUI.Button(deleteButtonRect, new GUIContent("✕", "Delete vessel"), redButtonStyle))
             {
                 OnDeleteVessel(_selectedLaunchComplex, vessel, isProduction);
             }
-
-            GUILayout.Space(1);
         }
 
         private void RenderRightPanel()
@@ -620,8 +642,69 @@ namespace RP0.UI.Construction
             if (launchComplex == null || vessel == null)
                 return;
 
-            // TODO: Begin rollout process
-            Debug.Log($"[RP-1 Construction] Starting rollout of {vessel.shipName} from {launchComplex.Name}");
+            string launchSite = vessel.launchSite;
+            if (launchSite == "LaunchPad" && launchComplex.LCType == LaunchComplexType.Pad)
+            {
+                if (vessel.launchSiteIndex >= 0 && vessel.launchSiteIndex < launchComplex.LaunchPads.Count)
+                    launchSite = launchComplex.LaunchPads[vessel.launchSiteIndex].name;
+                else
+                    launchSite = launchComplex.ActiveLPInstance.name;
+            }
+
+            // Check if there's a pad available
+            LCLaunchPad foundPad = launchComplex.FindFreeLaunchPad();
+            LaunchPadState padState = foundPad != null ? LaunchPadState.Free : launchComplex.GetBestLaunchPadState();
+
+            if (padState <= LaunchPadState.Nonoperational)
+            {
+                PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), 
+                    "cannotRollOutDestroyedPopup", "Cannot Roll out!", 
+                    "The launch pad is not operational. You must repair it before you can roll out.", 
+                    "Acknowledged", false, HighLogic.UISkin).HideGUIsWhilePopup();
+                return;
+            }
+
+            // Check facility requirements
+            List<string> facilityChecks = new List<string>();
+            bool meetsChecks = vessel.MeetsFacilityRequirements(facilityChecks);
+
+            if (!meetsChecks)
+            {
+                PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), 
+                    "cannotLaunchEditorChecksPopup", "Cannot Launch!", 
+                    "Warning! This vessel did not pass the editor checks! Until you upgrade this launch complex it cannot be launched. Listed below are the failed checks:\n" 
+                    + string.Join("\n", facilityChecks.Select(s => $"• {s}").ToArray()), 
+                    "Acknowledged", false, HighLogic.UISkin).HideGUIsWhilePopup();
+                return;
+            }
+
+            // Create rollout project
+            ReconRolloutProject rollout = new ReconRolloutProject(vessel, ReconRolloutProject.RolloutReconType.Rollout, vessel.shipID.ToString(), launchSite);
+            
+            if (foundPad != null)
+            {
+                bool padClear = !foundPad.HasVesselWaitingToBeLaunched(out Vessel foundVessel);
+                if (padClear)
+                {
+                    vessel.launchSiteIndex = launchComplex.LaunchPads.IndexOf(foundPad);
+                    launchComplex.Recon_Rollout.Add(rollout);
+                    RP0Debug.Log($"[RP-1 Construction] Starting rollout of {vessel.shipName} to {launchSite}");
+                }
+                else
+                {
+                    PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), 
+                        "cannotRollOutVesselOnPad", "Cannot Roll out!", 
+                        $"{foundVessel.vesselName} is already waiting on the launch pad.", 
+                        "Acknowledged", false, HighLogic.UISkin).HideGUIsWhilePopup();
+                }
+            }
+            else
+            {
+                PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    "cannotRollOutNoPad", "Cannot Roll out!",
+                    "No launch pad is currently free. Please free a pad or wait for the active rollout to complete.",
+                    "Acknowledged", false, HighLogic.UISkin).HideGUIsWhilePopup();
+            }
         }
 
         private void OnLaunchVessel(LaunchComplex launchComplex, VesselProject vessel)
@@ -629,8 +712,69 @@ namespace RP0.UI.Construction
             if (launchComplex == null || vessel == null)
                 return;
 
-            // TODO: Launch vessel
-            Debug.Log($"[RP-1 Construction] Launching {vessel.shipName} from {launchComplex.Name}");
+            string launchSite = vessel.launchSite;
+            bool isPad = launchComplex.LCType == LaunchComplexType.Pad;
+
+            if (launchSite == "LaunchPad" && isPad)
+            {
+                if (vessel.launchSiteIndex >= 0 && vessel.launchSiteIndex < launchComplex.LaunchPads.Count)
+                    launchSite = launchComplex.LaunchPads[vessel.launchSiteIndex].name;
+                else
+                    launchSite = launchComplex.ActiveLPInstance.name;
+            }
+
+            // Get the launch pad
+            LCLaunchPad pad = isPad ? launchComplex.LaunchPads.Find(lp => lp.name == launchSite) : null;
+
+            // Verify pad is operational
+            if (isPad && (pad == null || pad.IsDestroyed || !pad.isOperational))
+            {
+                string msg = pad == null ? "No launch pad found." : "The launch pad requires repairs.";
+                PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), 
+                    "cannotLaunchRepairPopup", "Cannot Launch!", 
+                    msg, "Acknowledged", false, HighLogic.UISkin).HideGUIsWhilePopup();
+                return;
+            }
+
+            // Check facility requirements
+            List<string> facilityChecks = new List<string>();
+            if (!vessel.MeetsFacilityRequirements(facilityChecks))
+            {
+                PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), 
+                    "cannotLaunchEditorChecksPopup", "Cannot Launch!", 
+                    "Warning! This vessel did not pass the editor checks! Until you upgrade this launch complex it cannot be launched. Listed below are the failed checks:\n" 
+                    + string.Join("\n", facilityChecks.Select(s => $"• {s}").ToArray()), 
+                    "Acknowledged", false, HighLogic.UISkin).HideGUIsWhilePopup();
+                return;
+            }
+
+            // Check if there's another vessel already on the pad
+            if (isPad && ShipConstruction.FindVesselsLandedAt(HighLogic.CurrentGame.flightState, pad.launchSiteName).Count > 0)
+            {
+                PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), 
+                    "cannotLaunchPadBusy", "Cannot Launch!", 
+                    "There is already a vessel on this launch pad.", "Acknowledged", false, HighLogic.UISkin).HideGUIsWhilePopup();
+                return;
+            }
+
+            // Set up for launch
+            SpaceCenterManagement.Instance.LaunchedVessel = vessel;
+            
+            if (isPad)
+            {
+                launchComplex.SwitchLaunchPad(vessel.launchSiteIndex);
+            }
+
+            // Handle crew assignment if needed
+            if (vessel.IsCrewable())
+            {
+                RP0Debug.Log($"[RP-1 Construction] Launching {vessel.shipName} - needs crew assignment");
+                // TODO: Show crew assignment window if needed
+            }
+
+            // Actually launch the vessel
+            vessel.Launch();
+            RP0Debug.Log($"[RP-1 Construction] Launched {vessel.shipName} from {launchSite}");
         }
 
         private void OnEditVessel(VesselProject vessel)
@@ -638,8 +782,15 @@ namespace RP0.UI.Construction
             if (vessel == null)
                 return;
 
-            // TODO: Open vessel in editor or show configuration window
-            Debug.Log($"[RP-1 Construction] Editing vessel {vessel.shipName}");
+            // This would typically open the vessel in the editor
+            // For now, log the action
+            RP0Debug.Log($"[RP-1 Construction] Opening vessel editor for {vessel.shipName}");
+            
+            // TODO: Integrate with editor if needed
+            // string tempFile = $"{KSPUtil.ApplicationRootPath}saves/{HighLogic.SaveFolder}/Ships/temp.craft";
+            // vessel.UpdateNodeAndSave(tempFile);
+            // SpaceCenterManagement.Instance.EditedVessel = vessel;
+            // EditorDriver.StartAndLoadVessel(tempFile, vessel.Type == ProjectType.SPH ? EditorFacility.SPH : EditorFacility.VAB);
         }
 
         private void OnDeleteVessel(LaunchComplex launchComplex, VesselProject vessel, bool isProduction)
@@ -647,8 +798,33 @@ namespace RP0.UI.Construction
             if (launchComplex == null || vessel == null)
                 return;
 
-            // TODO: Show confirmation dialog and delete vessel
-            Debug.Log($"[RP-1 Construction] Deleting vessel {vessel.shipName} from {(isProduction ? "production" : "storage")}");
+            DialogGUIBase[] options = new DialogGUIBase[2];
+            options[0] = new DialogGUIButton("Yes", () => ConfirmDeleteVessel(launchComplex, vessel, isProduction));
+            options[1] = new DialogGUIButton("No", () => { });
+            
+            string location = isProduction ? "production" : "storage";
+            MultiOptionDialog dialog = new MultiOptionDialog(
+                "deleteVesselConfirmation", 
+                $"Are you sure you want to delete {vessel.shipName} from {location}?", 
+                "Delete Vessel?", 
+                null, 
+                options);
+            
+            PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin).HideGUIsWhilePopup();
+        }
+
+        private void ConfirmDeleteVessel(LaunchComplex launchComplex, VesselProject vessel, bool isProduction)
+        {
+            if (isProduction)
+            {
+                launchComplex.BuildList.Remove(vessel);
+            }
+            else
+            {
+                launchComplex.Warehouse.Remove(vessel);
+            }
+            
+            RP0Debug.Log($"[RP-1 Construction] Deleted vessel {vessel.shipName}");
         }
     }
 }
